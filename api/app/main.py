@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime
 import os
 
 from fastapi import FastAPI, Depends, Header, HTTPException, status
@@ -79,7 +79,7 @@ def check_license(
             detail="license disabled"
         )
     
-    if license.expires_at and license.expires_at < datetime.now():
+    if license.expires_at and license.expires_at < datetime.date.today():
 
         repo.update_license(license_key=data.license_key,is_active=False)
 
