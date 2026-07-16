@@ -30,32 +30,32 @@ The Workflow:
     pip install -r requirements.txt
 
 ### envirment configuration
-    TOKEN=token
-    HOST=db-host
-    USERR=db-user
-    PASS=db-pass
-    DB=db name
-    PHOTO_GROUP_ID = photo-group-id
-    SUPPORT_GROUP_ID = support-group-id
-    VIP_ID = vip id
-    MANAGER_CHAT_ID = manager-chat-id
-    ME_CHAT_ID = me-chat-id
-    PHOTO_ID = andicator-photo-id
-    BOT_PHOTO_ID = bot-photo-id
-    PRO_BOT_PHOTO_ID = pro-bot-photo-id
-    VIDEO_ID = andicator-video-photo-id
-    ANDPDF = andicator-pdf-id
-    BOT_VIDEO_ID = bot-video-id
-    VOICE_ID = voice-id
-    EX_ID_PRO = ea-id-pro-bot
-    EX_ID = ea-id-bot
+TOKEN=token
+HOST=db-host
+USERR=db-user
+PASS=db-pass
+DB=db name
+PHOTO_GROUP_ID = photo-group-id
+SUPPORT_GROUP_ID = support-group-id
+VIP_ID = vip id
+MANAGER_CHAT_ID = manager-chat-id
+ME_CHAT_ID = me-chat-id
+PHOTO_ID = andicator-photo-id
+BOT_PHOTO_ID = bot-photo-id
+PRO_BOT_PHOTO_ID = pro-bot-photo-id
+VIDEO_ID = andicator-video-photo-id
+ANDPDF = andicator-pdf-id
+BOT_VIDEO_ID = bot-video-id
+VOICE_ID = voice-id
+EX_ID_PRO = ea-id-pro-bot
+EX_ID = ea-id-bot
 
 ### running 
-# -telegram-bot
-python3 telegram.py
+### -telegram-bot
+    python3 telegram.py
 
-#-api
-uvicorn main:app --host 0.0.0.0 --port 8000
+### -api
+    uvicorn main:app --host 0.0.0.0 --port 8000
 
-#-pro-api
-uvicorn main:app --host 0.0.0.0 --port 8080
+### -pro-api
+    uvicorn main:app --host 0.0.0.0 --port 8080
