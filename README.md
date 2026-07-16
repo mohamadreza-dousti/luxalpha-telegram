@@ -1,5 +1,5 @@
 ### luxalpha
-    Sale & License Management System
+Sale & License Management System
 
 ### How it Works (System Flow)
 
