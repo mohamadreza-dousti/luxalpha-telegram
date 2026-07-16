@@ -51,11 +51,11 @@ The Workflow:
     EX_ID = ea-id-bot
 
 ### running 
-    -telegram-bot
-    python3 telegram.py
+# -telegram-bot
+python3 telegram.py
 
-    -api
-    uvicorn main:app --host 0.0.0.0 --port 8000
+#-api
+uvicorn main:app --host 0.0.0.0 --port 8000
 
-    -pro-api
-    uvicorn main:app --host 0.0.0.0 --port 8080
+#-pro-api
+uvicorn main:app --host 0.0.0.0 --port 8080
