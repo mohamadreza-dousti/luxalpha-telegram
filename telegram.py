@@ -54,6 +54,7 @@ async def check_expirations3():
                         services.set_expiration_ban_bot(chat_id)
                         services.set_service(chat_id=chat_id, service='None')
                         services.set_service_bot(chat_id, 'None')
+                        services.set_service_pro(chat_id, 'None')
                         try:
                             await bot.kick_chat_member(vip_id, chat_id)
                         except:
@@ -182,6 +183,68 @@ async def check_expirations_bot():
                             pass
                         res = await bot.send_message(support_group_id, f"سه روز از اشتراک کاربر باقی مانده:\nنام و نام خانوادگی:{fullname}\nشماره تلفن:{phone}\nاشتراک:ربات {p}", reply_markup=keyboard_claim)
                         services.set_expiration_notified_bot(chat_id)
+                    await asyncio.sleep(10)
+        except:
+            pass
+        await asyncio.sleep(10800)
+
+async def check_expirations_ban_pro():
+    while True:
+        try:
+            expired_users = services.get_expired_users_to_ban_pro()
+            
+            today = datetime.date.today()
+    #        today = jdatetime.date(1405, 10, 1)
+        
+            for user in expired_users:
+                chat_id = user[0]
+                info = allUser.get_info(chat_id)
+                fullname = f"{info[0]} {info[1]}"
+                phone = info[2]
+                p = services.get_service_pro(chat_id)[0]
+                user_exp_date = user[1]
+                if p != 'trial' and p != 'None':
+                    if user_exp_date and today >= user_exp_date:
+                        msg = "⚠️ اشتراک لایسنس شما به پایان رسید\nبرای خرید اشتراک از دستور /خرید استفاده کنید."
+                        try:
+                            await bot.send_message(chat_id, msg)
+                        except:
+                            pass
+                        await bot.send_message(support_group_id, f"اشتراک کاربر به پایان رسید:\nنام و نام خانوادگی:{fullname}\nشماره تلفن:{phone}\nاشتراک:ربات {p}", reply_markup=keyboard_claim)
+                        services.set_service_pro(chat_id=chat_id, service='None')
+                        services.set_expiration_ban_pro(chat_id)
+                        try:
+                            await bot.kick_chat_member(vip_id, chat_id)
+                        except:
+                            pass
+        except:
+            pass
+        await asyncio.sleep(10800)
+
+async def check_expirations_pro():
+    while True:
+        try:
+            expired_users = services.get_expired_users_to_notify_pro()
+            
+            today = datetime.date.today()
+            
+            for user in expired_users:
+                chat_id = user[0]
+                info = allUser.get_info(chat_id)
+                fullname = f"{info[0]} {info[1]}"
+                phone = info[2]
+                p = services.get_service_pro(chat_id)[0]
+                user_exp_date = user[1]
+                user_exp_date = user_exp_date - timedelta(days=3)
+                if p != 'trial' and p != 'None':
+                    if user_exp_date and today >= user_exp_date:
+                        msg = "⚠️ مشترک گرامی، 3 روز از اشتراک لایسنس شما باقی مانده است. برای تمدید از دستور /تمدید استفاده کنید."
+                        try:
+                            await bot.send_message(chat_id, msg)
+                        except:
+                            pass
+                        res = await bot.send_message(support_group_id, f"سه روز از اشتراک کاربر باقی مانده:\nنام و نام خانوادگی:{fullname}\nشماره تلفن:{phone}\nاشتراک:ربات {p}", reply_markup=keyboard_claim)
+                        services.set_expiration_notified_pro(chat_id)
                     await asyncio.sleep(10)
         except:
             pass
@@ -985,17 +1048,20 @@ async def handle_steps(message):
 
     elif user_data[chat_id]["step"] == "GET_TID":
         user_data[chat_id]["tid"] = text
-        user_data[chat_id]["step"] = "GET_TID2"
-        await bot.send_message(chat_id, "ایدی دوم اکانت trading view را وارد کنید در صورتی که ندارید دستور /pass را وارد کنید")
-
-    elif user_data[chat_id]["step"] == "GET_TID2":
-        if text == "/pass":
-            text = "None"
-        user_data[chat_id]["tid2"] = text
+        user_data[chat_id]["tid2"] = "allTimeFull"
         services.set_ids(chat_id, user_data[chat_id]["tid"], user_data[chat_id]["tid2"])
         await bot.send_photo(chat_id, photo_id)
         await bot.send_message(chat_id, "لطفا پلن خود را انتخاب کنید", reply_markup=keyboard_plan)
         user_data[chat_id]["step"] = "pl"
+
+    # elif user_data[chat_id]["step"] == "GET_TID2":
+    #     if text == "/pass":
+    #         text = "None"
+    #     user_data[chat_id]["tid2"] = text
+    #     services.set_ids(chat_id, user_data[chat_id]["tid"], user_data[chat_id]["tid2"])
+    #     await bot.send_photo(chat_id, photo_id)
+    #     await bot.send_message(chat_id, "لطفا پلن خود را انتخاب کنید", reply_markup=keyboard_plan)
+    #     user_data[chat_id]["step"] = "pl"
 
     elif user_data[chat_id]["step"] == "support":
         if text and text == "/exit":
@@ -1196,37 +1262,49 @@ async def handle_steps(message):
             if text == 'کاربران تستی':
                 ids = services.get_trial_user_ids()
                 ids2 = services.get_trial_user_ids_bot()
+                ids3 = services.get_trial_user_ids_pro()
                 ids.extend(ids2)
+                ids.extend(ids3)
                 user_data[chat_id]['step'] = "SEND_MESSAGE"
                 await bot.send_message(chat_id, "پیام خود را بنویسید:")
             elif text == "کاربران فعال":
                 ids = services.get_active_user_ids()
                 ids2 = services.get_active_user_ids_bot()
+                ids3 = services.get_active_user_ids_pro()
                 ids.extend(ids2)
+                ids.extend(ids3)
                 user_data[chat_id]['step'] = "SEND_MESSAGE"
                 await bot.send_message(chat_id, "پیام خود را بنویسید:")
             elif text == 'کاربران بدون اشتراک':
                 ids = services.get_deactive_user_ids()
                 ids2 = services.get_deactive_user_ids_bot()
+                ids3 = services.get_deactive_user_ids_pro()
                 ids.extend(ids2)
+                ids.extend(ids3)
                 user_data[chat_id]['step'] = "SEND_MESSAGE"
                 await bot.send_message(chat_id, "پیام خود را بنویسید:")
             elif text == "کاربران یک ماهه":
                 ids = services.get_basic_user_ids()
                 ids2 = services.get_basic_user_ids_bot()
+                ids3 = services.get_basic_user_ids_pro()
                 ids.extend(ids2)
+                ids.extend(ids3)
                 user_data[chat_id]['step'] = "SEND_MESSAGE"
                 await bot.send_message(chat_id, "پیام خود را بنویسید:")
             elif text == "کاربران سه ماهه":
                 ids = services.get_pro_user_ids()
                 ids2 = services.get_pro_user_ids_bot()
+                ids3 = services.get_pro_user_ids_pro()
                 ids.extend(ids2)
+                ids.extend(ids3)
                 user_data[chat_id]['step'] = "SEND_MESSAGE"
                 await bot.send_message(chat_id, "پیام خود را بنویسید:")
             elif text == "کاربران شش ماهه":
                 ids = services.get_elite_user_ids()
                 ids2 = services.get_elite_user_ids_bot()
+                ids3 = services.get_elite_user_ids_pro()
                 ids.extend(ids2)
+                ids.extend(ids3)
                 user_data[chat_id]['step'] = "SEND_MESSAGE"
                 await bot.send_message(chat_id, "پیام خود را بنویسید:")
             user_data[chat_id]['ids'] = ids
