@@ -352,8 +352,8 @@ class serviceManagement:
         try:
             ser = self.get_service(chat_id)[0]
         except:
-            ser = 'None'
-        if ser == 'None' or ser == []:
+            ser = 'Nonee'
+        if ser == 'Nonee' or ser == []:
             query =     query = """
             INSERT INTO services (id, service_and)
             VALUES (%s, %s)
