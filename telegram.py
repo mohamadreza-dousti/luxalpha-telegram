@@ -41,7 +41,9 @@ async def check_expirations3():
                 fullname = f"{info[0]} {info[1]}"
                 phone = info[2]
                 p = services.get_service(chat_id)[0]
-                if p == 'trial':
+                pb = services.get_service_bot(chat_id)[0]
+                pp = services.get_service_pro(chat_id)[0]
+                if p == 'trial' or pp == 'trial' or pb == 'trial':
                     user_exp_date = user[1]
                     if user_exp_date and today >= user_exp_date:
                         msg = "⚠️ مشترک گرامی،اشتراک 3 روزه شما پایان یافته است. برای خرید اشتراک از دستور /خرید استفاده کنید."
@@ -52,9 +54,12 @@ async def check_expirations3():
                         await bot.send_message(support_group_id, f"اشتراک کاربر به پایان رسید:\nنام و نام خانوادگی:{fullname}\nشماره تلفن:{phone}\nاشتراک: {p}", reply_markup=keyboard_claim)
                         services.set_expiration_notified3(chat_id)
                         services.set_expiration_ban_bot(chat_id)
-                        services.set_service(chat_id=chat_id, service='None')
-                        services.set_service_bot(chat_id, 'None')
-                        services.set_service_pro(chat_id, 'None')
+                        if p == 'trial':
+                            services.set_service(chat_id=chat_id, service='None')
+                        if pb == 'trial':
+                            services.set_service_bot(chat_id, 'None')
+                        if pp == 'trial':
+                            services.set_service_pro(chat_id, 'None')
                         try:
                             await bot.kick_chat_member(vip_id, chat_id)
                         except:
