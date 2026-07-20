@@ -54,6 +54,7 @@ async def check_expirations3():
                         await bot.send_message(support_group_id, f"اشتراک کاربر به پایان رسید:\nنام و نام خانوادگی:{fullname}\nشماره تلفن:{phone}\nاشتراک: {p}", reply_markup=keyboard_claim)
                         services.set_expiration_notified3(chat_id)
                         services.set_expiration_ban_bot(chat_id)
+                        services.set_expiration_ban_pro(chat_id)
                         if p == 'trial':
                             services.set_service(chat_id=chat_id, service='None')
                         if pb == 'trial':
