@@ -1184,12 +1184,17 @@ async def handle_steps(message):
             users = allUser.export_users()
             txt = ""
             for first_name, last_name, phone in users:
-                txt += (
+                users_info = (
                     f"نام: {first_name}\n"
                     f"نام خانوادگی: {last_name}\n"
                     f"شماره: {phone}\n"
                     "============================\n")
-            await bot.send_message(chat_id, txt)
+                if len(txt)+len(users_info) > 4000:
+                    await bot.send_message(chat_id, txt)
+                    txt = ""
+                txt += users_info
+            if txt:
+                await bot.send_message(chat_id, txt)
             await bot.send_message(chat_id, "برای خروج از بخش مدیریت دستور /exit را وارد کنید.")
             user_data[chat_id] = {"step":"choose_operation"}
         elif text == "خروجی کاربران جدید":
@@ -1199,12 +1204,17 @@ async def handle_steps(message):
             else:
                 txt = ""
                 for first_name, last_name, phone in users:
-                    txt += (
+                    users_info = (
                         f"نام: {first_name}\n"
                         f"نام خانوادگی: {last_name}\n"
                         f"شماره: {phone}\n"
                         "============================\n")
-                await bot.send_message(chat_id, txt)
+                    if len(txt)+len(users_info) > 4000:
+                        await bot.send_message(chat_id, txt)
+                        txt = ""
+                    txt += users_info
+                if txt:
+                    await bot.send_message(chat_id, txt)
             allUser.set_new_member()
             await bot.send_message(chat_id, "برای خروج از بخش مدیریت دستور /exit را وارد کنید.")
             user_data[chat_id] = {"step":"choose_operation"}
