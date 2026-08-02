@@ -275,6 +275,8 @@ class serviceManagement:
                 temp_service_and VARCHAR (30),
                 temp_service_bot VARCHAR (30),
                 temp_service_pro VARCHAR (30),
+                service_andu VARCHAR (30),
+                temp_service_andu VARCHAR (30),
                 INDEX (id)
         ) ENGINE=InnoDB;
         """ 
@@ -288,6 +290,18 @@ class serviceManagement:
 
     def get_service(self, chat_id):
         query = """SELECT service_and FROM services WHERE id = %s"""
+        params = (str(chat_id),)
+        try:
+            with self.db_pool.get_connection() as con:
+                with con.cursor() as cursor:
+                    cursor.execute(query, params=params)
+                    res = cursor.fetchone()
+                    return res
+        except Exception as e:
+            print(e)
+
+    def get_service_u(self, chat_id):
+        query = """SELECT service_andu FROM services WHERE id = %s"""
         params = (str(chat_id),)
         try:
             with self.db_pool.get_connection() as con:
@@ -338,6 +352,19 @@ class serviceManagement:
     def set_service_pro(self, chat_id, service):
         query = """UPDATE services
         SET service_pro = %s
+        WHERE id = %s"""
+        params = (service, str(chat_id))
+        try:
+            with self.db_pool.get_connection() as con:
+                with con.cursor() as cursor:
+                    cursor.execute(query, params=params)
+                    con.commit()
+        except:
+            print("error in ser_service_pro")
+
+    def set_service_u(self, chat_id, service):
+        query = """UPDATE services
+        SET service_andu = %s
         WHERE id = %s"""
         params = (service, str(chat_id))
         try:
@@ -411,12 +438,31 @@ class serviceManagement:
                     return res
         except:
             return []
+
+    def get_temp_u(self, chat_id):
+        try:
+            with self.db_pool.get_connection() as con:
+                with con.cursor() as cursor:
+                    cursor.execute("SELECT temp_service_andu FROM services WHERE id = %s", (str(chat_id),))
+                    res = cursor.fetchone()
+                    return res
+        except:
+            return []
         
     def update_temp_service(self, plan, char_id):
         try:
             with self.db_pool.get_connection() as con:
                 with con.cursor() as cursor:
                     cursor.execute("UPDATE services SET temp_service_and = %s WHERE id = %s", (plan , str(char_id)))
+                    con.commit()
+        except:
+            print("error in update_temp_service")
+
+    def update_temp_service_u(self, plan, char_id):
+        try:
+            with self.db_pool.get_connection() as con:
+                with con.cursor() as cursor:
+                    cursor.execute("UPDATE services SET temp_service_andu = %s WHERE id = %s", (plan , str(char_id)))
                     con.commit()
         except:
             print("error in update_temp_service")
@@ -438,7 +484,89 @@ class serviceManagement:
                     con.commit()
         except:
             print("error in update_temp_service_pro")
-        
+
+    def get_user_status_u(self):
+        query = """SELECT service_andu, COUNT(*) FROM services GROUP BY service_andu"""
+        try:
+            with self.db_pool.get_connection() as con:
+                with con.cursor() as cursor:
+                    cursor.execute(query)
+                    results = cursor.fetchall()
+                    stats = {}
+                    for row in results:
+                        stats[row[0]] = row[1]
+
+                    return stats
+        except Exception as e:
+            print(e)
+            return []
+
+    def get_deactive_user_ids_u(self):
+        query = "SELECT id FROM services WHERE service_andu = 'None'"
+        try:
+            with self.db_pool.get_connection() as con:
+                with con.cursor() as cursor:
+                    cursor.execute(query)
+                    ids = [row[0] for row in cursor.fetchall()]
+                    return ids
+        except:
+            return []
+
+    def get_active_user_ids_u(self):
+        query = "SELECT id FROM services WHERE service_andu != 'None'"
+        try:
+            with self.db_pool.get_connection() as con:
+                with con.cursor() as cursor:
+                    cursor.execute(query)
+                    ids = [row[0] for row in cursor.fetchall()]
+                    return ids
+        except:
+            return []
+    
+    def get_trial_user_ids_u(self):
+        query = "SELECT id FROM services WHERE service_andu = 'trial'"
+        try:
+            with self.db_pool.get_connection() as con:
+                with con.cursor() as cursor:
+                    cursor.execute(query)
+                    ids = [row[0] for row in cursor.fetchall()]
+                    return ids
+        except:
+            return []
+
+    def get_basic_user_ids_u(self):
+        query = "SELECT id FROM services WHERE service_andu = 'یک ماهه الترا'"
+        try:
+            with self.db_pool.get_connection() as con:
+                with con.cursor() as cursor:
+                    cursor.execute(query)
+                    ids = [row[0] for row in cursor.fetchall()]
+                    return ids
+        except:
+            return []
+    
+    def get_pro_user_ids_u(self):
+        query = "SELECT id FROM services WHERE service_andu = 'سه ماهه الترا'"
+        try:
+            with self.db_pool.get_connection() as con:
+                with con.cursor() as cursor:
+                    cursor.execute(query)
+                    ids = [row[0] for row in cursor.fetchall()]
+                    return ids
+        except:
+            return []
+
+    def get_elite_user_ids_u(self):
+        query = "SELECT id FROM services WHERE service_andu = 'شش الترا'"
+        try:
+            with self.db_pool.get_connection() as con:
+                with con.cursor() as cursor:
+                    cursor.execute(query)
+                    ids = [row[0] for row in cursor.fetchall()]
+                    return ids
+        except:
+            return []
+
     def get_user_status(self):
         query = """SELECT service_and, COUNT(*) FROM services GROUP BY service_and"""
         try:
@@ -745,7 +873,9 @@ class serviceManagement:
                     return res
         except:
             return []
-##############################################################andicator table##############################################################
+
+
+#############################################################andicator table##############################################################
     def create_table_andicator(self):
         query = """
         CREATE TABLE IF NOT EXISTS andicators (
@@ -929,6 +1059,216 @@ class serviceManagement:
             year += 1
         ex_date = datetime.date(year, ex_month, day)
         query = """UPDATE andicators
+        SET expires_at = %s,
+        start_at = %s,
+        is_active = %s,
+        message_sent = %s
+        WHERE id = %s"""
+        params = (ex_date, now, 1, 0, str(chat_id))
+        try:
+            with self.db_pool.get_connection() as con:
+                with con.cursor() as cursor:
+                    cursor.execute(query, params=params)
+                    con.commit()
+        except Exception as e:
+            print(f"error in set_date:{e}")
+
+
+##############################################################andicator ultra table##############################################################
+    def create_table_andicator_u(self):
+        query = """
+        CREATE TABLE IF NOT EXISTS andicators_u (
+                id VARCHAR (255),
+                t_id_1 VARCHAR (255),
+                t_id_2 VARCHAR (255),
+                start_at DATE,
+                expires_at DATE,
+                is_active BOOLEAN DEFAULT 1,
+                message_sent BOOLEAN DEFAULT 0,
+                INDEX (id)
+        ) ENGINE=InnoDB;
+        """ 
+        try:
+            with self.db_pool.get_connection() as con:
+                with con.cursor() as cursor:
+                    cursor.execute(query)
+                    con.commit()
+        except:
+            print("error in create table ADNICATORSu")
+    
+    def get_date_u(self, chat_id):
+        query = """SELECT expires_at FROM andicators_u WHERE id = %s"""
+        params = (str(chat_id),)
+        try:
+            with self.db_pool.get_connection() as con:
+                with con.cursor() as cursor:
+                    cursor.execute(query, params)
+                    res = cursor.fetchone()
+                    return res
+        except Exception as e:
+            print(e)
+        
+    def get_ids_u(self, chat_id):
+        query = """SELECT t_id_1, t_id_2 FROM andicators_u WHERE id = %s"""
+        params = (str(chat_id),)
+        try:
+            with self.db_pool.get_connection() as con:
+                with con.cursor() as cursor:
+                    cursor.execute(query, params=params)
+                    res = cursor.fetchone()
+                    res = [res[0], res[1]]
+                    return res
+        except:
+            return []
+
+    def set_date_3_u(self, chat_id):
+        now = datetime.date.today()
+        ex_date = datetime.date.today() + timedelta(days=3)
+        query = """INSERT INTO andicators_u (id, start_at, expires_at) VALUES (%s, %s, %s)"""
+        params = (str(chat_id), now, ex_date)
+        try:
+            with self.db_pool.get_connection() as con:
+                with con.cursor() as cursor:
+                    cursor.execute(query, params=params)
+                    con.commit()
+        except Exception as e:
+           print(f"error in set_date_3u:{e}")
+        
+    def set_ids_u(self, chat_id, t1, t2):
+        query = "SELECT EXISTS(SELECT 1 FROM andicators_u WHERE id = %s)"
+
+        try:
+            with self.db_pool.get_connection() as con:
+                with con.cursor() as cursor:
+                    cursor.execute(query, (str(chat_id),))
+                    result = cursor.fetchone()
+                    res = bool(result[0])
+
+        except Exception as e:
+            print(f"Error checking id: {e}")
+            res = False
+        if not res:
+            query = """
+            INSERT INTO andicators_u (id, t_id_1, t_id_2)
+            VALUES (%s, %s, %s)
+            """
+            params = (str(chat_id), t1, t2)
+            try:
+                with self.db_pool.get_connection() as con:
+                    with con.cursor() as cursor:
+                        cursor.execute(query, params=params)
+                        con.commit()
+            except:
+                print("error in set_ids")
+        else:
+            query = """UPDATE andicators_u
+            SET t_id_1 = %s,
+            t_id_2 = %s
+            WHERE id = %s"""
+            params = (t1, t2, str(chat_id))
+            try:
+                with self.db_pool.get_connection() as con:
+                    with con.cursor() as cursor:
+                        cursor.execute(query, params=params)
+                        con.commit()
+            except:
+                print("error in set_ids")
+
+    def get_expired_users_to_notify_u(self):
+        try:
+            with self.db_pool.get_connection() as con:
+                with con.cursor() as cursor:
+                    cursor.execute("SELECT id, expires_at, t_id_1, t_id_2 FROM andicators_u WHERE message_sent = 0")
+                    res = cursor.fetchall()
+                    return res
+        except:
+            return []
+
+    def get_expired_users_to_ban_u(self):
+        try:
+            with self.db_pool.get_connection() as con:
+                with con.cursor() as cursor:
+                    cursor.execute("SELECT id, expires_at, t_id_1, t_id_2 FROM andicators_u WHERE is_active = 1")
+                    res = cursor.fetchall()
+                    return res
+        except:
+            return []
+    
+    def set_expiration_ban_u(self, chat_id):
+        try:
+            with self.db_pool.get_connection() as con:
+                with con.cursor() as cursor:
+                    cursor.execute("UPDATE andicators_u SET is_active = %s WHERE id = %s", (0, str(chat_id)))
+                    con.commit()
+        except:
+            print("error in set ban")
+
+    def set_expiration_notified_u(self, chat_id):
+        try:
+            with self.db_pool.get_connection() as con:
+                with con.cursor() as cursor:
+                    cursor.execute("UPDATE andicators_u SET message_sent = %s WHERE id = %s", (1, str(chat_id)))
+                    con.commit()
+        except:
+            print("error in set notified")
+    
+    def set_date_u(self, chat_id, service):
+        now = datetime.date.today()
+        p = (str(chat_id),)
+        query1 = "SELECT expires_at FROM andicators_u WHERE id = %s"
+        try:
+            with self.db_pool.get_connection() as con:
+                with con.cursor() as cursor:
+                    cursor.execute(query1, p)
+                    re = cursor.fetchone()
+        except:
+            re = []
+        month = re[0].month
+        year = re[0].year
+        day = re[0].day
+        if service == 'یک ماهه الترا':
+            ex = 1
+        elif service == 'سه ماهه الترا':
+            ex = 3
+        else:
+            ex = 6
+        ex_month = month + ex
+        if ex_month > 12:
+            ex_month = ex_month - 12
+            year += 1
+        ex_date = datetime.date(year, ex_month, day)
+        query = """UPDATE andicators_u
+        SET expires_at = %s,
+        start_at = %s,
+        is_active = %s,
+        message_sent = %s
+        WHERE id = %s"""
+        params = (ex_date, now, 1, 0, str(chat_id))
+        try:
+            with self.db_pool.get_connection() as con:
+                with con.cursor() as cursor:
+                    cursor.execute(query, params=params)
+                    con.commit()
+        except Exception as e:
+            print(f"error in set_date:{e}")
+
+    def set_date_buy_u(self, chat_id, service):
+        now = datetime.date.today()
+        year = now.year
+        month = now.month
+        day = now.day
+        if service == 'یک ماهه الترا':
+            ex = 1
+        elif service == 'سه ماهه الترا':
+            ex = 3
+        else:
+            ex = 6
+        ex_month = month + ex
+        if ex_month > 12:
+            ex_month = ex_month - 12
+            year += 1
+        ex_date = datetime.date(year, ex_month, day)
+        query = """UPDATE andicators_u
         SET expires_at = %s,
         start_at = %s,
         is_active = %s,
