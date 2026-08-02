@@ -1,16 +1,19 @@
 from telebot.async_telebot import AsyncTeleBot
 import datetime
 from database.db import userDB, serviceManagement, general
+from price.get_price import tether
 import asyncio
 import aiohttp
 import hashlib
 import re
 from telebot.async_telebot import types
+from telebot.types import ReplyKeyboardRemove
 from datetime import timedelta
 import random
 from database.db import DBPool
 from dotenv import load_dotenv
 import os
+import math
 
 load_dotenv()
 
@@ -24,6 +27,7 @@ services.create_table_license()
 services.create_table_services()
 services.create_table_trial()
 services.create_table_license_pro()
+services.create_table_andicator_u()
 generall = general(db_pool)
 generall.create_table_admin()
 
@@ -41,9 +45,10 @@ async def check_expirations3():
                 fullname = f"{info[0]} {info[1]}"
                 phone = info[2]
                 p = services.get_service(chat_id)[0]
-                pb = services.get_service_bot(chat_id)[0]
-                pp = services.get_service_pro(chat_id)[0]
-                if p == 'trial' or pp == 'trial' or pb == 'trial':
+                pu = services.get_service_u(chat_id)[0]
+                # pb = services.get_service_bot(chat_id)[0]
+                # pp = services.get_service_pro(chat_id)[0]
+                if p == 'trial' or pu == 'trial':# or pb == 'trial':
                     user_exp_date = user[1]
                     if user_exp_date and today >= user_exp_date:
                         msg = "⚠️ مشترک گرامی،اشتراک 3 روزه شما پایان یافته است. برای خرید اشتراک از دستور /خرید استفاده کنید."
@@ -53,19 +58,21 @@ async def check_expirations3():
                             print(e)
                         await bot.send_message(support_group_id, f"اشتراک کاربر به پایان رسید:\nنام و نام خانوادگی:{fullname}\nشماره تلفن:{phone}\nاشتراک: {p}", reply_markup=keyboard_claim)
                         services.set_expiration_notified3(chat_id)
-                        services.set_expiration_ban_bot(chat_id)
-                        services.set_expiration_ban_pro(chat_id)
+                        services.set_expiration_ban_u(chat_id)
+                        # services.set_expiration_ban_bot(chat_id)
+                        # services.set_expiration_ban_pro(chat_id)
                         if p == 'trial':
                             services.set_service(chat_id=chat_id, service='None')
-                        if pb == 'trial':
-                            services.set_service_bot(chat_id, 'None')
-                        if pp == 'trial':
-                            services.set_service_pro(chat_id, 'None')
+                        if pu == 'trial':
+                            services.set_service_u(chat_id=chat_id, service='None')
+                        # if pb == 'trial':
+                        #     services.set_service_bot(chat_id, 'None')
+                        # if pp == 'trial':
+                        #     services.set_service_pro(chat_id, 'None')
                         try:
                             await bot.kick_chat_member(vip_id, chat_id)
                         except:
                             pass
-                        print("finished")
                     await asyncio.sleep(10)
         except:
             pass
@@ -132,10 +139,10 @@ async def check_expirations():
             pass
         await asyncio.sleep(10800)
 
-async def check_expirations_ban_bot():
+async def check_expirations_ban_u():
     while True:
         try:
-            expired_users = services.get_expired_users_to_ban_bot()
+            expired_users = services.get_expired_users_to_ban_u()
             
             today = datetime.date.today()
     #        today = jdatetime.date(1405, 10, 1)
@@ -145,30 +152,30 @@ async def check_expirations_ban_bot():
                 info = allUser.get_info(chat_id)
                 fullname = f"{info[0]} {info[1]}"
                 phone = info[2]
-                p = services.get_service_bot(chat_id)[0]
+                p = services.get_service_u(chat_id)[0]
                 user_exp_date = user[1]
-                if p != 'trial' and p != 'None':
-                    if user_exp_date and today >= user_exp_date:
-                        msg = "⚠️ اشتراک لایسنس شما به پایان رسید\nبرای خرید اشتراک از دستور /خرید استفاده کنید."
-                        try:
-                            await bot.send_message(chat_id, msg)
-                        except:
-                            pass
-                        await bot.send_message(support_group_id, f"اشتراک کاربر به پایان رسید:\nنام و نام خانوادگی:{fullname}\nشماره تلفن:{phone}\nاشتراک:ربات {p}", reply_markup=keyboard_claim)
-                        services.set_service_bot(chat_id=chat_id, service='None')
-                        services.set_expiration_ban_bot(chat_id)
-                        try:
-                            await bot.kick_chat_member(vip_id, chat_id)
-                        except:
-                            pass
+                if user_exp_date and today >= user_exp_date:
+                    msg = "⚠️ اشتراک شما به پایان رسید\nبرای خرید اشتراک از دستور /خرید استفاده کنید."
+                    try:
+                        await bot.send_message(chat_id, msg)
+                    except:
+                        pass
+                    await bot.send_message(support_group_id, f"اشتراک کاربر به پایان رسید:\nنام و نام خانوادگی:{fullname}\nشماره تلفن:{phone}\nاشتراک:اندیکاتور {p}", reply_markup=keyboard_claim)
+                    services.set_service_u(chat_id=chat_id, service='None')
+                    services.set_expiration_ban_u(chat_id)
+                    try:
+                        await bot.kick_chat_member(vip_id, chat_id)
+                    except:
+                        pass
+                await asyncio.sleep(10)
         except:
             pass
         await asyncio.sleep(10800)
 
-async def check_expirations_bot():
+async def check_expirations_u():
     while True:
         try:
-            expired_users = services.get_expired_users_to_notify_bot()
+            expired_users = services.get_expired_users_to_notify_u()
             
             today = datetime.date.today()
             
@@ -177,92 +184,147 @@ async def check_expirations_bot():
                 info = allUser.get_info(chat_id)
                 fullname = f"{info[0]} {info[1]}"
                 phone = info[2]
-                p = services.get_service_bot(chat_id)[0]
+                p = services.get_service_u(chat_id)[0]
                 user_exp_date = user[1]
-                user_exp_date = user_exp_date - timedelta(days=3)
-                if p != 'trial' and p != 'None':
-                    if user_exp_date and today >= user_exp_date:
-                        msg = "⚠️ مشترک گرامی، 3 روز از اشتراک لایسنس شما باقی مانده است. برای تمدید از دستور /تمدید استفاده کنید."
-                        try:
-                            await bot.send_message(chat_id, msg)
-                        except:
-                            pass
-                        res = await bot.send_message(support_group_id, f"سه روز از اشتراک کاربر باقی مانده:\nنام و نام خانوادگی:{fullname}\nشماره تلفن:{phone}\nاشتراک:ربات {p}", reply_markup=keyboard_claim)
-                        services.set_expiration_notified_bot(chat_id)
-                    await asyncio.sleep(10)
+                today = today - timedelta(days=3)
+                if user_exp_date and today >= user_exp_date:
+                    msg = "⚠️ مشترک گرامی، 3 روز از اشتراک شما باقی مانده است. برای تمدید از دستور /تمدید استفاده کنید."
+                    try:
+                        await bot.send_message(chat_id, msg)
+                    except:
+                        pass
+                    await bot.send_message(support_group_id, f"سه روز از اشتراک کاربر باقی مانده:\nنام و نام خانوادگی:{fullname}\nشماره تلفن:{phone}\nاشتراک:اندیکاتور {p}", reply_markup=keyboard_claim)
+                    services.set_expiration_notified_u(chat_id)
+                await asyncio.sleep(10)
         except:
             pass
         await asyncio.sleep(10800)
 
-async def check_expirations_ban_pro():
-    while True:
-        try:
-            expired_users = services.get_expired_users_to_ban_pro()
+# async def check_expirations_ban_bot():
+#     while True:
+#         try:
+#             expired_users = services.get_expired_users_to_ban_bot()
             
-            today = datetime.date.today()
-    #        today = jdatetime.date(1405, 10, 1)
+#             today = datetime.date.today()
+#     #        today = jdatetime.date(1405, 10, 1)
         
-            for user in expired_users:
-                chat_id = user[0]
-                info = allUser.get_info(chat_id)
-                fullname = f"{info[0]} {info[1]}"
-                phone = info[2]
-                p = services.get_service_pro(chat_id)[0]
-                user_exp_date = user[1]
-                if p != 'trial' and p != 'None':
-                    if user_exp_date and today >= user_exp_date:
-                        msg = "⚠️ اشتراک لایسنس شما به پایان رسید\nبرای خرید اشتراک از دستور /خرید استفاده کنید."
-                        try:
-                            await bot.send_message(chat_id, msg)
-                        except:
-                            pass
-                        await bot.send_message(support_group_id, f"اشتراک کاربر به پایان رسید:\nنام و نام خانوادگی:{fullname}\nشماره تلفن:{phone}\nاشتراک:ربات {p}", reply_markup=keyboard_claim)
-                        services.set_service_pro(chat_id=chat_id, service='None')
-                        services.set_expiration_ban_pro(chat_id)
-                        try:
-                            await bot.kick_chat_member(vip_id, chat_id)
-                        except:
-                            pass
-        except:
-            pass
-        await asyncio.sleep(10800)
+#             for user in expired_users:
+#                 chat_id = user[0]
+#                 info = allUser.get_info(chat_id)
+#                 fullname = f"{info[0]} {info[1]}"
+#                 phone = info[2]
+#                 p = services.get_service_bot(chat_id)[0]
+#                 user_exp_date = user[1]
+#                 if p != 'trial' and p != 'None':
+#                     if user_exp_date and today >= user_exp_date:
+#                         msg = "⚠️ اشتراک لایسنس شما به پایان رسید\nبرای خرید اشتراک از دستور /خرید استفاده کنید."
+#                         try:
+#                             await bot.send_message(chat_id, msg)
+#                         except:
+#                             pass
+#                         await bot.send_message(support_group_id, f"اشتراک کاربر به پایان رسید:\nنام و نام خانوادگی:{fullname}\nشماره تلفن:{phone}\nاشتراک:ربات {p}", reply_markup=keyboard_claim)
+#                         services.set_service_bot(chat_id=chat_id, service='None')
+#                         services.set_expiration_ban_bot(chat_id)
+#                         try:
+#                             await bot.kick_chat_member(vip_id, chat_id)
+#                         except:
+#                             pass
+#         except:
+#             pass
+#         await asyncio.sleep(10800)
 
-async def check_expirations_pro():
-    while True:
-        try:
-            expired_users = services.get_expired_users_to_notify_pro()
+# async def check_expirations_bot():
+#     while True:
+#         try:
+#             expired_users = services.get_expired_users_to_notify_bot()
             
-            today = datetime.date.today()
+#             today = datetime.date.today()
             
-            for user in expired_users:
-                chat_id = user[0]
-                info = allUser.get_info(chat_id)
-                fullname = f"{info[0]} {info[1]}"
-                phone = info[2]
-                p = services.get_service_pro(chat_id)[0]
-                user_exp_date = user[1]
-                user_exp_date = user_exp_date - timedelta(days=3)
-                if p != 'trial' and p != 'None':
-                    if user_exp_date and today >= user_exp_date:
-                        msg = "⚠️ مشترک گرامی، 3 روز از اشتراک لایسنس شما باقی مانده است. برای تمدید از دستور /تمدید استفاده کنید."
-                        try:
-                            await bot.send_message(chat_id, msg)
-                        except:
-                            pass
-                        res = await bot.send_message(support_group_id, f"سه روز از اشتراک کاربر باقی مانده:\nنام و نام خانوادگی:{fullname}\nشماره تلفن:{phone}\nاشتراک:ربات {p}", reply_markup=keyboard_claim)
-                        services.set_expiration_notified_pro(chat_id)
-                    await asyncio.sleep(10)
-        except:
-            pass
-        await asyncio.sleep(10800)
+#             for user in expired_users:
+#                 chat_id = user[0]
+#                 info = allUser.get_info(chat_id)
+#                 fullname = f"{info[0]} {info[1]}"
+#                 phone = info[2]
+#                 p = services.get_service_bot(chat_id)[0]
+#                 user_exp_date = user[1]
+#                 user_exp_date = user_exp_date - timedelta(days=3)
+#                 if p != 'trial' and p != 'None':
+#                     if user_exp_date and today >= user_exp_date:
+#                         msg = "⚠️ مشترک گرامی، 3 روز از اشتراک لایسنس شما باقی مانده است. برای تمدید از دستور /تمدید استفاده کنید."
+#                         try:
+#                             await bot.send_message(chat_id, msg)
+#                         except:
+#                             pass
+#                         res = await bot.send_message(support_group_id, f"سه روز از اشتراک کاربر باقی مانده:\nنام و نام خانوادگی:{fullname}\nشماره تلفن:{phone}\nاشتراک:ربات {p}", reply_markup=keyboard_claim)
+#                         services.set_expiration_notified_bot(chat_id)
+#                     await asyncio.sleep(10)
+#         except:
+#             pass
+#         await asyncio.sleep(10800)
+
+# async def check_expirations_ban_pro():
+#     while True:
+#         try:
+#             expired_users = services.get_expired_users_to_ban_pro()
+            
+#             today = datetime.date.today()
+#     #        today = jdatetime.date(1405, 10, 1)
+        
+#             for user in expired_users:
+#                 chat_id = user[0]
+#                 info = allUser.get_info(chat_id)
+#                 fullname = f"{info[0]} {info[1]}"
+#                 phone = info[2]
+#                 p = services.get_service_pro(chat_id)[0]
+#                 user_exp_date = user[1]
+#                 if p != 'trial' and p != 'None':
+#                     if user_exp_date and today >= user_exp_date:
+#                         msg = "⚠️ اشتراک لایسنس شما به پایان رسید\nبرای خرید اشتراک از دستور /خرید استفاده کنید."
+#                         try:
+#                             await bot.send_message(chat_id, msg)
+#                         except:
+#                             pass
+#                         await bot.send_message(support_group_id, f"اشتراک کاربر به پایان رسید:\nنام و نام خانوادگی:{fullname}\nشماره تلفن:{phone}\nاشتراک:ربات {p}", reply_markup=keyboard_claim)
+#                         services.set_service_pro(chat_id=chat_id, service='None')
+#                         services.set_expiration_ban_pro(chat_id)
+#                         try:
+#                             await bot.kick_chat_member(vip_id, chat_id)
+#                         except:
+#                             pass
+#         except:
+#             pass
+#         await asyncio.sleep(10800)
+
+# async def check_expirations_pro():
+#     while True:
+#         try:
+#             expired_users = services.get_expired_users_to_notify_pro()
+            
+#             today = datetime.date.today()
+            
+#             for user in expired_users:
+#                 chat_id = user[0]
+#                 info = allUser.get_info(chat_id)
+#                 fullname = f"{info[0]} {info[1]}"
+#                 phone = info[2]
+#                 p = services.get_service_pro(chat_id)[0]
+#                 user_exp_date = user[1]
+#                 user_exp_date = user_exp_date - timedelta(days=3)
+#                 if p != 'trial' and p != 'None':
+#                     if user_exp_date and today >= user_exp_date:
+#                         msg = "⚠️ مشترک گرامی، 3 روز از اشتراک لایسنس شما باقی مانده است. برای تمدید از دستور /تمدید استفاده کنید."
+#                         try:
+#                             await bot.send_message(chat_id, msg)
+#                         except:
+#                             pass
+#                         res = await bot.send_message(support_group_id, f"سه روز از اشتراک کاربر باقی مانده:\nنام و نام خانوادگی:{fullname}\nشماره تلفن:{phone}\nاشتراک:ربات {p}", reply_markup=keyboard_claim)
+#                         services.set_expiration_notified_pro(chat_id)
+#                     await asyncio.sleep(10)
+#         except:
+#             pass
+#         await asyncio.sleep(10800)
 
 after_start = """به اکوسیستم معاملاتی LUXalpha خوش آمدید. 💎
-
-ما در LUXalpha، بیش از یک تیم فنی هستیم؛ ما همسفرانِ شما در مسیر پرچالشِ بازارهای مالی هستیم.
-
-تاریخچه فعالیت ما به سال ۲۰۱۷ بازمی‌گردد. از آن روز تا به امروز، هدف ما همواره یک چیز بوده است: تبدیل پیچیدگی‌های بازار به ابزارهای هوشمند و قابل‌فهم.
-
-امروز، مفتخریم که تیمی متشکل از ۱۵ متخصصِ تراز اول در حوزه‌های برنامه‌نویسی الگوریتمی، تحلیل داده‌های مالی و مهندسی سیستم‌های معاملاتی، در کنار هم جمع شده‌ایم تا قدرتمندترین ابزارهای معاملاتی – از اندیکاتورهای هوشمند تا ربات‌های تمام‌اتوماتیک – را برای شما توسعه دهیم. 🤖🚀
 
 ما اینجا هستیم تا به شما کمک کنیم با ابزارهایی معامله کنید که بر پایه منطق، استراتژی و دانشِ مهندسی بنا شده‌اند، نه حدس و گمان.
 
@@ -272,50 +334,50 @@ after_start = """به اکوسیستم معاملاتی LUXalpha خوش آمدی
 برای اینکه بتونی دسترسی ۳ روزه رایگان رو دریافت کنی و نتایج لایو ما رو ببینی، لطفاً عدد 10 رو همین‌جا برام بفرست."""
 
 
-after_100 = """لیست ابزارهای اختصاصی LUXalpha 🛠️
+# after_100 = """لیست ابزارهای اختصاصی LUXalpha 🛠️
 
-ما برای هر سطح از تجربه و هر استراتژی معاملاتی، ابزار اختصاصی خودمان را توسعه داده‌ایم. محصول مورد نظر خود را انتخاب کنید:
+# ما برای هر سطح از تجربه و هر استراتژی معاملاتی، ابزار اختصاصی خودمان را توسعه داده‌ایم. محصول مورد نظر خود را انتخاب کنید:
 
-۱. اندیکاتور اختصاصی LUXalpha 📉
-این ابزار، “دستیارِ چشم‌های شماست.” اگر به تحلیل شخصی علاقه‌مندید و می‌خواهید تصمیم‌گیرنده نهایی باشید، اما به دنبال دقتی در حدِ هوش مصنوعی هستید، این انتخاب برای شماست.
+# ۱. اندیکاتور اختصاصی LUXalpha 📉
+# این ابزار، “دستیارِ چشم‌های شماست.” اگر به تحلیل شخصی علاقه‌مندید و می‌خواهید تصمیم‌گیرنده نهایی باشید، اما به دنبال دقتی در حدِ هوش مصنوعی هستید، این انتخاب برای شماست.
 
-مناسب برای: تریدرهایی که می‌خواهند نقاط ورود و خروج را خودشان تأیید کنند.
-مزیت اصلی: شناسایی ترندهای اصلی، فیلتر کردن نویزهای بازار و سیگنال‌دهی با دقت بالا.
-هدف: کاهش خطای محاسباتی در تحلیل‌های دستی.
-۲. ربات معامله‌گر تمام‌اتوماتیک LUXalpha 🤖
-این ابزار، “پایلوتِ خودکارِ شماست.” اگر به دنبال آزادی عمل هستید و می‌خواهید بدون درگیری با استرس و احساساتِ لحظه‌ای، سیستم به‌صورت ۲۴ ساعته برای شما ترید کند، این محصول برای شماست.
+# مناسب برای: تریدرهایی که می‌خواهند نقاط ورود و خروج را خودشان تأیید کنند.
+# مزیت اصلی: شناسایی ترندهای اصلی، فیلتر کردن نویزهای بازار و سیگنال‌دهی با دقت بالا.
+# هدف: کاهش خطای محاسباتی در تحلیل‌های دستی.
+# ۲. ربات معامله‌گر تمام‌اتوماتیک LUXalpha 🤖
+# این ابزار، “پایلوتِ خودکارِ شماست.” اگر به دنبال آزادی عمل هستید و می‌خواهید بدون درگیری با استرس و احساساتِ لحظه‌ای، سیستم به‌صورت ۲۴ ساعته برای شما ترید کند، این محصول برای شماست.
 
-مناسب برای: تریدرهایی که به دنبال مدیریت ریسکِ سیستماتیک و اتوماسیون کامل هستند.
-مزیت اصلی: ورود و خروج پله‌ای (Partial Take Profit)، مدیریت ریسک هوشمند و عملکرد بدون وقفه.
-هدف: حذف کامل خطای انسانی و مدیریت سرمایه بهینه."""
-
-
-after_10 = """خیلی خوشحالم که برای ارتقای سطح تریدینگت، ما رو انتخاب کردی.
-
-ما اینجا با استفاده از بروزترین متدهای اسمارت‌مانی و اندیکاتورهای اختصاصی خودمون، معاملات رو از حالت شانسی به یک بیزینس دقیق و سودده تبدیل کردیم.
-
-برای اینکه بتونی دسترسی ۳ روزه رایگان رو دریافت کنی و نتایج لایو ما رو ببینی، لطفاً عدد 10 رو همین‌جا برام بفرست."""
+# مناسب برای: تریدرهایی که به دنبال مدیریت ریسکِ سیستماتیک و اتوماسیون کامل هستند.
+# مزیت اصلی: ورود و خروج پله‌ای (Partial Take Profit)، مدیریت ریسک هوشمند و عملکرد بدون وقفه.
+# هدف: حذف کامل خطای انسانی و مدیریت سرمایه بهینه."""
 
 
-after_buy = """«ما برای رفاه حال تریدرهای LUXalpha و حذفِ پروسه‌های پیچیده احراز هویت در صرافی‌های بزرگ، هماهنگی‌های لازم را با یک تیمِ صرافیِ خصوصی انجام داده‌ایم.
+# after_10 = """خیلی خوشحالم که برای ارتقای سطح تریدینگت، ما رو انتخاب کردی.
 
-تجربه استفاده از این صرافی برای کاربران ما بسیار راحت‌تر از اپلیکیشن‌های عمومی است؛ چرا که:
+# ما اینجا با استفاده از بروزترین متدهای اسمارت‌مانی و اندیکاتورهای اختصاصی خودمون، معاملات رو از حالت شانسی به یک بیزینس دقیق و سودده تبدیل کردیم.
 
-۱. بدون پیچیدگی: خرید تتر بدون درگیری با احراز هویت‌های طولانی و رابط‌های کاربری گیج‌کننده.
+# برای اینکه بتونی دسترسی ۳ روزه رایگان رو دریافت کنی و نتایج لایو ما رو ببینی، لطفاً عدد 10 رو همین‌جا برام بفرست."""
 
-۲. سرعت بالا: واریز و دریافت تتر بلافاصله بعد از انتقال وجه ریالی.
 
-۳. پشتیبانی مستقیم: ارتباط سریع در صورت بروز هرگونه مشکل در انتقال.
+# after_buy = """«ما برای رفاه حال تریدرهای LUXalpha و حذفِ پروسه‌های پیچیده احراز هویت در صرافی‌های بزرگ، هماهنگی‌های لازم را با یک تیمِ صرافیِ خصوصی انجام داده‌ایم.
 
-نحوه استفاده:
+# تجربه استفاده از این صرافی برای کاربران ما بسیار راحت‌تر از اپلیکیشن‌های عمومی است؛ چرا که:
 
-شما می‌توانید از طریق لینک زیر مستقیماً با مسئولِ این صرافی در ارتباط باشید. کافی‌ست به ایشان پیام دهید که «از طرف تیم LUXalpha» معرفی شدید تا در اولویت خدمات قرار بگیرید:
+# ۱. بدون پیچیدگی: خرید تتر بدون درگیری با احراز هویت‌های طولانی و رابط‌های کاربری گیج‌کننده.
 
-🔗 @Xrate_support
+# ۲. سرعت بالا: واریز و دریافت تتر بلافاصله بعد از انتقال وجه ریالی.
 
-⚠️ سلب مسئولیت شفاف:
+# ۳. پشتیبانی مستقیم: ارتباط سریع در صورت بروز هرگونه مشکل در انتقال.
 
-مجموعه LUXalpha صرفاً جهت تسهیلِ کارِ کاربران، این کانال را معرفی می‌کند. از آنجایی که ما این صرافی را به‌دلیل کیفیت خدماتش پیشنهاد می‌دهیم، تیم ما مسئولیتی در قبال نوسانات بازار یا مشکلات احتمالی در تراکنش‌های مالیِ خارج از سیستمِ رباتِ ما ندارد. (پیشنهاد می‌کنیم همیشه دارایی خود را بلافاصله به کیف پول شخصی یا حساب بروکر منتقل کنید).»"""
+# نحوه استفاده:
+
+# شما می‌توانید از طریق لینک زیر مستقیماً با مسئولِ این صرافی در ارتباط باشید. کافی‌ست به ایشان پیام دهید که «از طرف تیم LUXalpha» معرفی شدید تا در اولویت خدمات قرار بگیرید:
+
+# 🔗 @Xrate_support
+
+# ⚠️ سلب مسئولیت شفاف:
+
+# مجموعه LUXalpha صرفاً جهت تسهیلِ کارِ کاربران، این کانال را معرفی می‌کند. از آنجایی که ما این صرافی را به‌دلیل کیفیت خدماتش پیشنهاد می‌دهیم، تیم ما مسئولیتی در قبال نوسانات بازار یا مشکلات احتمالی در تراکنش‌های مالیِ خارج از سیستمِ رباتِ ما ندارد. (پیشنهاد می‌کنیم همیشه دارایی خود را بلافاصله به کیف پول شخصی یا حساب بروکر منتقل کنید).»"""
 
 
 questions = """
@@ -370,22 +432,33 @@ button2 = types.InlineKeyboardButton(text="سه ماهه", callback_data="سه �
 button3 = types.InlineKeyboardButton(text="شش ماهه", callback_data="شش ماهه")
 keyboard_plan.add(button1, button2, button3)
 
-keyboard_plan_b = types.InlineKeyboardMarkup()
-buttonbo1 = types.InlineKeyboardButton(text="یک ماهه", callback_data="بات یک ماهه")
-buttonbo2 = types.InlineKeyboardButton(text="سه ماهه", callback_data="بات سه ماهه")
-buttonbo3 = types.InlineKeyboardButton(text="شش ماهه", callback_data="بات شش ماهه")
-keyboard_plan_b.add(buttonbo1, buttonbo2, buttonbo3)
+keyboard_plan_au = types.InlineKeyboardMarkup()
+buttonu1 = types.InlineKeyboardButton(text="یک ماهه", callback_data="یک ماهه الترا")
+buttonu2 = types.InlineKeyboardButton(text="سه ماهه", callback_data="سه ماهه الترا")
+buttonu3 = types.InlineKeyboardButton(text="شش ماهه", callback_data="شش ماهه الترا")
+keyboard_plan_au.add(buttonu1, buttonu2, buttonu3)
 
-keyboard_plan_bp = types.InlineKeyboardMarkup()
-buttonbot1 = types.InlineKeyboardButton(text="یک ماهه", callback_data="بات پرو یک ماهه")
-buttonbot2 = types.InlineKeyboardButton(text="سه ماهه", callback_data="بات پرو سه ماهه")
-buttonbot3 = types.InlineKeyboardButton(text="شش ماهه", callback_data="بات پرو شش ماهه")
-keyboard_plan_bp.add(buttonbot1, buttonbot2, buttonbot3)
+# keyboard_plan_b = types.InlineKeyboardMarkup()
+# buttonbo1 = types.InlineKeyboardButton(text="یک ماهه", callback_data="بات یک ماهه")
+# buttonbo2 = types.InlineKeyboardButton(text="سه ماهه", callback_data="بات سه ماهه")
+# buttonbo3 = types.InlineKeyboardButton(text="شش ماهه", callback_data="بات شش ماهه")
+# keyboard_plan_b.add(buttonbo1, buttonbo2, buttonbo3)
+
+# keyboard_plan_bp = types.InlineKeyboardMarkup()
+# buttonbot1 = types.InlineKeyboardButton(text="یک ماهه", callback_data="بات پرو یک ماهه")
+# buttonbot2 = types.InlineKeyboardButton(text="سه ماهه", callback_data="بات پرو سه ماهه")
+# buttonbot3 = types.InlineKeyboardButton(text="شش ماهه", callback_data="بات پرو شش ماهه")
+# keyboard_plan_bp.add(buttonbot1, buttonbot2, buttonbot3)
 
 keyboard_wallet = types.InlineKeyboardMarkup()
 buttonw1 = types.InlineKeyboardButton(text="trc20", callback_data="t")
 buttonw2 = types.InlineKeyboardButton(text="bep20", callback_data="b")
 keyboard_wallet.add(buttonw1, buttonw2)
+
+keyboard_pay = types.InlineKeyboardMarkup()
+buttonpay1 = types.InlineKeyboardButton(text="ریالی", callback_data="ri")
+buttonpay2 = types.InlineKeyboardButton(text="ارز دیجیتال", callback_data="di")
+keyboard_pay.add(buttonpay1, buttonpay2)
 
 keyboard_support = types.InlineKeyboardMarkup()
 buttons1 = types.InlineKeyboardButton(text="گزینه 1", callback_data="10")
@@ -408,51 +481,73 @@ keyboard_manager.add(buttonm3, buttonm4)
 keyboard_manager.add(buttonm5, buttonm6)
 
 keyboard_service = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
-buttonb1 = types.KeyboardButton("ربات🤖💹")
-buttonb2 = types.KeyboardButton("اندیکاتور📊📈")
-buttonb3 = types.KeyboardButton("ربات پرو🤖💹")
-keyboard_service.add(buttonb1, buttonb2)
-keyboard_service.add(buttonb3)
+# buttonb1 = types.KeyboardButton("ربات🤖💹")
+buttonb2 = types.KeyboardButton("اندیکاتور لوکس الفا📊📈")
+buttonb4 = types.KeyboardButton("اندیکاتور لوکس الفا الترا مخصوص طلا📊📈")
+# buttonb3 = types.KeyboardButton("ربات پرو🤖💹")
+keyboard_service.add(buttonb2)
+keyboard_service.add(buttonb4)#, buttonb2)
+# keyboard_service.add(buttonb3)
 
-keyboard_service_re = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
-buttonre1 = types.KeyboardButton("تمدید ربات🤖💹")
-buttonre2 = types.KeyboardButton("تمدید اندیکاتور📊📈")
-buttonre3 = types.KeyboardButton("تمدید ربات پرو🤖💹")
-keyboard_service_re.add(buttonre1, buttonre2)
-keyboard_service_re.add(buttonre3)
+keyboard_service_re = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
+# buttonre1 = types.KeyboardButton("تمدید ربات🤖💹")
+buttonre2 = types.KeyboardButton("تمدید اندیکاتور لوکس الفا📊📈")
+buttonre4 = types.KeyboardButton("تمدید اندیکاتور لوکس الفا الترا مخصوص طلا📊📈")
+# buttonre3 = types.KeyboardButton("تمدید ربات پرو🤖💹")
+keyboard_service_re.add(buttonre2)
+keyboard_service_re.add(buttonre4)#, buttonre2)
+# keyboard_service_re.add(buttonre3)
 
-keyboard_learn_an = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
-buttonla1 = types.KeyboardButton("دریافت اموزش اندیکاتور📚")
-buttonla2 = types.KeyboardButton("ادامه خرید اندیکاتور🛒")
-keyboard_learn_an.add(buttonla1, buttonla2)
+keyboard_learn_an = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
+buttonla1 = types.KeyboardButton("دریافت اموزش اندیکاتور لوکس الفا📚")
+buttonla2 = types.KeyboardButton("ادامه خرید اندیکاتور لوکس الفا🛒")
+keyboard_learn_an.add(buttonla1)
+keyboard_learn_an.add(buttonla2)
 
-learn_keyboard = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
-buttonlk1 = types.KeyboardButton("دریافت اموزش اندیکاتور📚")
-buttonlk2 = types.KeyboardButton("دریافت اموزش ربات📚")
-buttonlk3 = types.KeyboardButton("/خرید")
-learn_keyboard.add(buttonlk1, buttonlk2)
-learn_keyboard.add(buttonlk3)
+keyboard_learn_au = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
+buttonlau1 = types.KeyboardButton("دریافت اموزش اندیکاتور لوکس الفا الترا مخصوص طلا📚")
+buttonlau2 = types.KeyboardButton("ادامه خرید اندیکاتور لوکس الفا الترا مخصوص طلا🛒")
+keyboard_learn_au.add(buttonlau1)
+keyboard_learn_au.add(buttonlau2)
 
-keyboard_learn_ea = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
-buttonla1 = types.KeyboardButton("دریافت اموزش ربات📚")
-buttonla2 = types.KeyboardButton("ادامه خرید ربات🛒")
-keyboard_learn_ea.add(buttonla1, buttonla2)
 
-keyboard_learn_ea_p = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
-buttonlp1 = types.KeyboardButton("دریافت اموزش ربات📚")
-buttonlp2 = types.KeyboardButton("ادامه خرید ربات پرو🛒")
-keyboard_learn_ea_p.add(buttonlp1, buttonlp2)
+learn_keyboard = types.ReplyKeyboardMarkup(row_width=4, resize_keyboard=True)
+buttonlk1 = types.KeyboardButton("اندیکاتور لوکس الفا📊📈")
+buttonlk2 = types.KeyboardButton("اندیکاتور لوکس الفا الترا مخصوص طلا📊📈")
+# buttonlk3 = types.KeyboardButton("دریافت اموزش اندیکاتور لوکس الفا📚")
+# buttonlk4 = types.KeyboardButton("دریافت اموزش اندیکاتور لوکس الفا الترا📚")
+# buttonlk3 = types.KeyboardButton("/خرید")
+learn_keyboard.add(buttonlk1) 
+learn_keyboard.add(buttonlk2)
+# learn_keyboard.add(buttonlk3)
+# learn_keyboard.add(buttonlk4)#, buttonlk2)
+# learn_keyboard.add(buttonlk3)
 
-keyboard_filter = types.ReplyKeyboardMarkup(row_width=3, resize_keyboard=True)
+# keyboard_learn_ea = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
+# buttonla1 = types.KeyboardButton("دریافت اموزش ربات📚")
+# buttonla2 = types.KeyboardButton("ادامه خرید ربات🛒")
+# keyboard_learn_ea.add(buttonla1, buttonla2)
+
+# keyboard_learn_ea_p = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
+# buttonlp1 = types.KeyboardButton("دریافت اموزش ربات📚")
+# buttonlp2 = types.KeyboardButton("ادامه خرید ربات پرو🛒")
+# keyboard_learn_ea_p.add(buttonlp1, buttonlp2)
+
+keyboard_filter = types.ReplyKeyboardMarkup(row_width=5, resize_keyboard=True)
 buttonm1 = types.KeyboardButton("کاربران فعال")
 buttonm2 = types.KeyboardButton("کاربران تستی")
 buttonm3 = types.KeyboardButton("کاربران یک ماهه")
 buttonm4 = types.KeyboardButton("کاربران سه ماهه")
 buttonm5 = types.KeyboardButton("کاربران شش ماهه")
-buttonm6 = types.KeyboardButton("کاربران بدون اشتراک")
+buttonm6 = types.KeyboardButton("کاربران یک ماهه الترا")
+buttonm7 = types.KeyboardButton("کاربران سه ماهه الترا")
+buttonm8 = types.KeyboardButton("کاربران شش ماهه الترا")
+buttonm9 = types.KeyboardButton("کاربران بدون اشتراک")
 keyboard_filter.add(buttonm1, buttonm2)
 keyboard_filter.add(buttonm3, buttonm4)
 keyboard_filter.add(buttonm5, buttonm6)
+keyboard_filter.add(buttonm7, buttonm8)
+keyboard_filter.add(buttonm9)
 
 keyboard_help = types.ReplyKeyboardMarkup(row_width=5, resize_keyboard=True)
 buttonh1 = types.KeyboardButton("10")
@@ -478,14 +573,17 @@ manager_chat_id = os.getenv("MANAGER_CHAT_ID")
 me_chat_id = os.getenv("ME_CHAT_ID")
 manager_users = [me_chat_id, manager_chat_id]
 photo_id = os.getenv("PHOTO_ID")
+andu_photo_id = os.getenv("ANDU_PHOTO_ID")
 bot_photo_id = os.getenv("BOT_PHOTO_ID")
 pro_bot_photo_id = os.getenv("PRO_BOT_PHOTO_ID")
 video_id = os.getenv("VIDEO_ID")
+u_v_id = os.getenv("U_VIDEO_ID")
 andpdf = os.getenv("ANDPDF")
 bot_video_id = os.getenv("BOT_VIDEO_ID")
 voice_id = os.getenv("VOICE_ID")
 ex_id_pro = os.getenv("EX_ID_PRO")
 ex_id = os.getenv("EX_ID")
+card = os.getenv("CARD_PHOTO_ID")
 
 def save_to_txt(data, filename="output.txt"):
     with open(filename, "w", encoding="utf-8") as f:
@@ -577,115 +675,143 @@ async def buy(message):
     else:
         await bot.send_message(chat_id, "محصول خود را انتخاب کنید:", reply_markup=keyboard_service)
 
-@bot.message_handler(regexp="^ربات پرو🤖💹$")
-async def robot(message):
-    chat_id = message.chat.id
-    await bot.send_message(chat_id, """📚 لطفاً قبل از هر خرید یا استفاده، حتماً آموزش‌ها را مشاهده کنید تا بتوانید بهترین نتیجه را بگیرید و بدون مشکل از خدمات استفاده کنید.
-""", reply_markup=keyboard_learn_ea_p)
+# @bot.message_handler(regexp="^ربات پرو🤖💹$")
+# async def robot(message):
+#     chat_id = message.chat.id
+#     await bot.send_message(chat_id, """📚 لطفاً قبل از هر خرید یا استفاده، حتماً آموزش‌ها را مشاهده کنید تا بتوانید بهترین نتیجه را بگیرید و بدون مشکل از خدمات استفاده کنید.
+# """, reply_markup=keyboard_learn_ea_p)
     
-@bot.message_handler(regexp="^ادامه خرید ربات پرو🛒$")
-async def cbbot(message):
-    chat_id = message.chat.id
-    k = allUser.check_user(chat_id)
-    try:
-        ser = services.get_service_pro(chat_id)[0]
-    except:
-        ser = "None"
-    if not k:
-        await bot.send_message(chat_id, "قبل از خرید با ارسال عدد 10 اطلاعات خود را ثبت کنید")
-    elif ser != "None" and ser != "trial" and ser != None and ser != []:
-        await bot.send_message(chat_id, "شما اشتراک فعال دارید.برای تمدید از دستور /تمدید استفاده کنید.")
-    else:
-        # with open("bot_pro.jpg", "rb") as photo:
-        #     res = await bot.send_photo(
-        #         chat_id=message.chat.id,
-        #         photo=photo,
-        #         caption="PRO BOTS"
-        #     )
-        #     print(res)
-        await bot.send_photo(chat_id, pro_bot_photo_id)
-        #await send_photo(session, chat_id, file_id_b)
-        await bot.send_message(chat_id, "لطفا پلن خود را انتخاب کنید", reply_markup=keyboard_plan_bp)
-        user_data[chat_id] = {"step":"plb"}
+# @bot.message_handler(regexp="^ادامه خرید ربات پرو🛒$")
+# async def cbbot(message):
+#     chat_id = message.chat.id
+#     k = allUser.check_user(chat_id)
+#     try:
+#         ser = services.get_service_pro(chat_id)[0]
+#     except:
+#         ser = "None"
+#     if not k:
+#         await bot.send_message(chat_id, "قبل از خرید با ارسال عدد 10 اطلاعات خود را ثبت کنید")
+#     elif ser != "None" and ser != "trial" and ser != None and ser != []:
+#         await bot.send_message(chat_id, "شما اشتراک فعال دارید.برای تمدید از دستور /تمدید استفاده کنید.")
+#     else:
+#         # with open("bot_pro.jpg", "rb") as photo:
+#         #     res = await bot.send_photo(
+#         #         chat_id=message.chat.id,
+#         #         photo=photo,
+#         #         caption="PRO BOTS"
+#         #     )
+#         #     print(res)
+#         await bot.send_photo(chat_id, pro_bot_photo_id)
+#         #await send_photo(session, chat_id, file_id_b)
+#         await bot.send_message(chat_id, "لطفا پلن خود را انتخاب کنید", reply_markup=keyboard_plan_bp)
+#         user_data[chat_id] = {"step":"plb"}
 
-@bot.message_handler(regexp="^تمدید ربات پرو🤖💹$")
-async def crebot(message):
-    chat_id = message.chat.id
-    k = allUser.check_user(chat_id)
-    try:
-        ser = services.get_service_pro(chat_id)[0]
-    except:
-        ser = "None"
-    if not k:
-        await bot.send_message(chat_id, "قبل از خرید با ارسال عدد 10 اطلاعات خود را ثبت کنید")
-    elif ser == "None" or ser == "trial" or ser == None or ser == []:
-        await bot.send_message(chat_id, "شما اشتراک فعال ندارید.برای خرید از دستور /خرید استفاده کنید.")
-    else:
-        await bot.send_photo(chat_id, pro_bot_photo_id)
-        #await send_photo(session, chat_id, file_id_b)
-        await bot.send_message(chat_id, "لطفا پلن خود را انتخاب کنید", reply_markup=keyboard_plan_bp)
-        user_data[chat_id] = {"step":"plb"}
+# @bot.message_handler(regexp="^تمدید ربات پرو🤖💹$")
+# async def crebot(message):
+#     chat_id = message.chat.id
+#     k = allUser.check_user(chat_id)
+#     try:
+#         ser = services.get_service_pro(chat_id)[0]
+#     except:
+#         ser = "None"
+#     if not k:
+#         await bot.send_message(chat_id, "قبل از خرید با ارسال عدد 10 اطلاعات خود را ثبت کنید")
+#     elif ser == "None" or ser == "trial" or ser == None or ser == []:
+#         await bot.send_message(chat_id, "شما اشتراک فعال ندارید.برای خرید از دستور /خرید استفاده کنید.")
+#     else:
+#         await bot.send_photo(chat_id, pro_bot_photo_id)
+#         #await send_photo(session, chat_id, file_id_b)
+#         await bot.send_message(chat_id, "لطفا پلن خود را انتخاب کنید", reply_markup=keyboard_plan_bp)
+        # user_data[chat_id] = {"step":"plb"}
 
-@bot.message_handler(regexp="^ربات🤖💹$")
-async def robot(message):
-    chat_id = message.chat.id
-    await bot.send_message(chat_id, """📚 لطفاً قبل از هر خرید یا استفاده، حتماً آموزش‌ها را مشاهده کنید تا بتوانید بهترین نتیجه را بگیرید و بدون مشکل از خدمات استفاده کنید.
-""", reply_markup=keyboard_learn_ea)
+# @bot.message_handler(regexp="^ربات🤖💹$")
+# async def robot(message):
+#     chat_id = message.chat.id
+#     await bot.send_message(chat_id, """📚 لطفاً قبل از هر خرید یا استفاده، حتماً آموزش‌ها را مشاهده کنید تا بتوانید بهترین نتیجه را بگیرید و بدون مشکل از خدمات استفاده کنید.
+# """, reply_markup=keyboard_learn_ea)
     
-@bot.message_handler(regexp="^ادامه خرید ربات🛒$")
-async def cbbot(message):
-    chat_id = message.chat.id
-    k = allUser.check_user(chat_id)
-    try:
-        ser = services.get_service_bot(chat_id)[0]
-    except:
-        ser = "None"
-    if not k:
-        await bot.send_message(chat_id, "قبل از خرید با ارسال عدد 10 اطلاعات خود را ثبت کنید")
-    elif ser != "None" and ser != "trial" and ser != None and ser != []:
-        await bot.send_message(chat_id, "شما اشتراک فعال دارید.برای تمدید از دستور /تمدید استفاده کنید.")
-    else:
-        await bot.send_photo(chat_id, bot_photo_id)
-        #await send_photo(session, chat_id, file_id_b)
-        await bot.send_message(chat_id, "لطفا پلن خود را انتخاب کنید", reply_markup=keyboard_plan_b)
-        user_data[chat_id] = {"step":"plb"}
+# @bot.message_handler(regexp="^ادامه خرید ربات🛒$")
+# async def cbbot(message):
+#     chat_id = message.chat.id
+#     k = allUser.check_user(chat_id)
+#     try:
+#         ser = services.get_service_bot(chat_id)[0]
+#     except:
+#         ser = "None"
+#     if not k:
+#         await bot.send_message(chat_id, "قبل از خرید با ارسال عدد 10 اطلاعات خود را ثبت کنید")
+#     elif ser != "None" and ser != "trial" and ser != None and ser != []:
+#         await bot.send_message(chat_id, "شما اشتراک فعال دارید.برای تمدید از دستور /تمدید استفاده کنید.")
+#     else:
+#         await bot.send_photo(chat_id, bot_photo_id)
+#         #await send_photo(session, chat_id, file_id_b)
+#         await bot.send_message(chat_id, "لطفا پلن خود را انتخاب کنید", reply_markup=keyboard_plan_b)
+#         user_data[chat_id] = {"step":"plb"}
 
-@bot.message_handler(regexp="^تمدید ربات🤖💹$")
-async def crebot(message):
-    chat_id = message.chat.id
-    k = allUser.check_user(chat_id)
-    try:
-        ser = services.get_service_bot(chat_id)[0]
-    except:
-        ser = "None"
-    if not k:
-        await bot.send_message(chat_id, "قبل از خرید با ارسال عدد 10 اطلاعات خود را ثبت کنید")
-    elif ser == "None" or ser == "trial" or ser == None or ser == []:
-        await bot.send_message(chat_id, "شما اشتراک فعال ندارید.برای خرید از دستور /خرید استفاده کنید.")
-    else:
-        await bot.send_photo(chat_id, bot_photo_id)
-        #await send_photo(session, chat_id, file_id_b)
-        await bot.send_message(chat_id, "لطفا پلن خود را انتخاب کنید", reply_markup=keyboard_plan_b)
-        user_data[chat_id] = {"step":"plb"}
+# @bot.message_handler(regexp="^تمدید ربات🤖💹$")
+# async def crebot(message):
+#     chat_id = message.chat.id
+#     k = allUser.check_user(chat_id)
+#     try:
+#         ser = services.get_service_bot(chat_id)[0]
+#     except:
+#         ser = "None"
+#     if not k:
+#         await bot.send_message(chat_id, "قبل از خرید با ارسال عدد 10 اطلاعات خود را ثبت کنید")
+#     elif ser == "None" or ser == "trial" or ser == None or ser == []:
+#         await bot.send_message(chat_id, "شما اشتراک فعال ندارید.برای خرید از دستور /خرید استفاده کنید.")
+#     else:
+#         await bot.send_photo(chat_id, bot_photo_id)
+#         #await send_photo(session, chat_id, file_id_b)
+#         await bot.send_message(chat_id, "لطفا پلن خود را انتخاب کنید", reply_markup=keyboard_plan_b)
+#         user_data[chat_id] = {"step":"plb"}
 
-@bot.message_handler(regexp="^اندیکاتور📊📈$")
+@bot.message_handler(regexp="^اندیکاتور لوکس الفا📊📈$")
 async def andic(message):
     chat_id = message.chat.id
     await bot.send_message(chat_id, """📚 لطفاً قبل از هر خرید یا استفاده، حتماً آموزش‌ها را مشاهده کنید تا بتوانید بهترین نتیجه را بگیرید و بدون مشکل از خدمات استفاده کنید.
 """, reply_markup=keyboard_learn_an)
-    
-@bot.message_handler(regexp="^دریافت اموزش ربات📚$")
-async def lb(message):
-    chat_id = message.chat.id
-    await bot.send_video(chat_id, video=bot_video_id)
-    await bot.send_voice(chat_id, voice_id)
 
-@bot.message_handler(regexp="^دریافت اموزش اندیکاتور📚$")
+@bot.message_handler(regexp="^اندیکاتور لوکس الفا الترا مخصوص طلا📊📈$")
+async def andic(message):
+    chat_id = message.chat.id
+    await bot.send_message(chat_id, """📚 لطفاً قبل از هر خرید یا استفاده، حتماً آموزش‌ها را مشاهده کنید تا بتوانید بهترین نتیجه را بگیرید و بدون مشکل از خدمات استفاده کنید.
+""", reply_markup=keyboard_learn_au)
+    
+# @bot.message_handler(regexp="^دریافت اموزش ربات📚$")
+# async def lb(message):
+#     chat_id = message.chat.id
+#     await bot.send_video(chat_id, video=bot_video_id)
+#     await bot.send_voice(chat_id, voice_id)
+@bot.message_handler(regexp="^دریافت اموزش اندیکاتور لوکس الفا الترا مخصوص طلا📚$")
+async def la(message):
+    chat_id = message.chat.id
+    #send video
+    await bot.send_video(chat_id, u_v_id)
+
+@bot.message_handler(regexp="^ادامه خرید اندیکاتور لوکس الفا الترا مخصوص طلا🛒$")
+async def candicc(message):
+    chat_id = message.chat.id
+    k = allUser.check_user(chat_id)
+    try:
+        ser = services.get_service_u(chat_id)[0]
+    except:
+        ser = "None"
+    if not k:
+        await bot.send_message(chat_id, "قبل از خرید با ارسال عدد 10 اطلاعات خود را ثبت کنید")
+    elif ser != "None" and ser != "trial" and ser != None:
+        await bot.send_message(chat_id, "شما اشتراک فعال دارید.برای تمدید از دستور /تمدید استفاده کنید.")
+    else:
+        await bot.send_photo(chat_id, andu_photo_id)
+        await bot.send_message(chat_id, "لطفا پلن خود را انتخاب کنید", reply_markup=keyboard_plan_au)
+        user_data[chat_id] = {"step":"pl"}
+
+@bot.message_handler(regexp="^دریافت اموزش اندیکاتور لوکس الفا📚$")
 async def la(message):
     chat_id = message.chat.id
     await bot.send_video(chat_id, video=video_id)
 
-@bot.message_handler(regexp="^ادامه خرید اندیکاتور🛒$")
+@bot.message_handler(regexp="^ادامه خرید اندیکاتور لوکس الفا🛒$")
 async def candic(message):
     chat_id = message.chat.id
     k = allUser.check_user(chat_id)
@@ -698,15 +824,16 @@ async def candic(message):
     elif ser != "None" and ser != "trial" and ser != None:
         await bot.send_message(chat_id, "شما اشتراک فعال دارید.برای تمدید از دستور /تمدید استفاده کنید.")
     else:
-        user_data[chat_id] = {"step":"GET_TID"}
-        await bot.send_message(chat_id, "ایدی اکانت trading view را وارد کنید")
+        await bot.send_photo(chat_id, photo_id)
+        await bot.send_message(chat_id, "لطفا پلن خود را انتخاب کنید", reply_markup=keyboard_plan)
+        user_data[chat_id] = {"step":"pl"}
 
 @bot.message_handler(commands=['تمدید'])
 async def ren(message):
     chat_id = message.chat.id
     await bot.send_message(chat_id, "محصول خود را انتخاب کنید:", reply_markup=keyboard_service_re)
 
-@bot.message_handler(regexp="^تمدید اندیکاتور📊📈$")
+@bot.message_handler(regexp="^تمدید اندیکاتور لوکس الفا📊📈$")
 async def crean(message):
         chat_id = message.chat.id
         try:
@@ -723,17 +850,36 @@ async def crean(message):
             await bot.send_message(chat_id, "لطفا پلن خود را انتخاب کنید", reply_markup=keyboard_plan)
             user_data[chat_id] = {"step":"pl"}    
 
+@bot.message_handler(regexp="^تمدید اندیکاتور لوکس الفا الترا مخصوص طلا📊📈$")
+async def creann(message):
+        chat_id = message.chat.id
+        try:
+            ser = services.get_service_u(chat_id)[0]
+        except:
+            ser = None
+        k = allUser.check_user(chat_id)
+        if not k:
+            await bot.send_message(chat_id, "قبل از خرید با ارسال عدد 10 اطلاعات خود را ثبت کنید")
+        elif ser == "None" or ser == "trial" or ser == None or ser == []:
+            await bot.send_message(chat_id, "شما اشتراک فعال ندارید.برای خرید از دستور /خرید استفاده")
+        else:
+            await bot.send_photo(chat_id, andu_photo_id)
+            await bot.send_message(chat_id, "لطفا پلن خود را انتخاب کنید", reply_markup=keyboard_plan_au)
+            user_data[chat_id] = {"step":"pl"}    
+
     # await bot.send_photo(chat_id, photo=photo_id, caption="luxalpha")
     # await bot.send_message(chat_id, "لطفا پلن مورد نظر را انتخاب کنید", reply_markup=keyboard_plan)
 
 @bot.callback_query_handler(func=lambda call: True)
 async def plan(call):
+    activate = re.search(r'^activate_', call.data)
     accept = re.search(r'^accept_', call.data)
     rejet = re.search(r'^reject_', call.data)
-    accept_bot = re.search(r'^bot accept_', call.data)
-    reject_bot = re.search(r'^bot reject_', call.data)
-    accept_pro = re.search(r'^pro accept_', call.data)
-    reject_pro = re.search(r'^pro reject_', call.data)
+    acceptu = re.search(r'^acceptu_', call.data)
+    # accept_bot = re.search(r'^bot accept_', call.data)
+    # reject_bot = re.search(r'^bot reject_', call.data)
+    # accept_pro = re.search(r'^pro accept_', call.data)
+    # reject_pro = re.search(r'^pro reject_', call.data)
     chat_id = call.message.chat.id
     msg_id = call.message.message_id
     admin_name = call.from_user.first_name
@@ -741,19 +887,64 @@ async def plan(call):
         services.update_temp_service(call.data, chat_id)
         user_data[chat_id] = {"step":"BUY", "command":"and"}
         await bot.answer_callback_query(call.id, f"پلن {call.data} انتخاب شد.")
+        res = await bot.send_message(chat_id, "نحوه پرداخت را انتخاب کنید", reply_markup=keyboard_pay)
+
+    elif call.data in ["یک ماهه الترا", "سه ماهه الترا", "شش ماهه الترا"]:
+        services.update_temp_service_u(call.data, chat_id)
+        user_data[chat_id] = {"step":"BUY", "command":"andu"}
+        await bot.answer_callback_query(call.id, f"پلن {call.data} انتخاب شد.")
+        res = await bot.send_message(chat_id, "نحوه پرداخت را انتخاب کنید", reply_markup=keyboard_pay)
+
+    elif call.data == 'ri':
+        t = tether()
+        price = t.get_price()
+        if not price:
+            await bot.send_message(chat_id, "مشکلی در دریافت قیمت پیش امده.لطفا بعدا تلاش کنید.")
+        else:
+            if user_data[chat_id]['command'] == 'andu':
+                s = services.get_temp_u(chat_id)[0]
+                if s == 'یک ماهه الترا':
+                    c = 38
+                elif s == 'سه ماهه الترا':
+                    c = 99
+                else:
+                    c = 149
+            else:
+                s = services.get_temp(chat_id)[0]
+                if s == 'یک ماهه':
+                    c = 28
+                elif s == 'سه ماهه':
+                    c = 79
+                else:
+                    c = 139
+            
+            price2 = price*c
+            finall_price = math.floor(price2/100000)*100000
+            await bot.send_photo(chat_id, card)
+            await bot.send_message(
+            chat_id, 
+            f"💵 *تومان نهایی:* `{finall_price:,}`\n"
+            f"🟢 *مبنا:* `{price:,}`\n"
+            f"────────────────\n"
+            f"🕒 *اعتبار تراکنش:* ۱ ساعت\n"
+        )
+            await bot.send_message(chat_id, "بعد از انجام واریز، فقط کافیست اسکرین‌شاتِ موفقیت‌آمیز بودنِ تراکنش را برای ما بفرستید.همکارانِ من در بخشِ فنی بلافاصله واریزی شما را بررسی و دسترسی‌تان را فعال می‌کنند.\nبرای ارسال عکس از دستور /عکس استفاده کنید.")
+
+
+    elif call.data == 'di':
         await bot.send_message(chat_id, "شبکه مورد نظر را انتخاب کنید", reply_markup=keyboard_wallet)
     
-    elif call.data in ["بات یک ماهه", "بات سه ماهه", "بات شش ماهه"]:
-        services.update_temp_service_bot(call.data, chat_id)
-        user_data[chat_id] = {"step":"BUY", "command":"bot"}
-        await bot.answer_callback_query(call.id, f"پلن {call.data} انتخاب شد.")
-        await bot.send_message(chat_id, "شبکه مورد نظر را انتخاب کنید", reply_markup=keyboard_wallet)
+    # elif call.data in ["بات یک ماهه", "بات سه ماهه", "بات شش ماهه"]:
+    #     services.update_temp_service_bot(call.data, chat_id)
+    #     user_data[chat_id] = {"step":"BUY", "command":"bot"}
+    #     await bot.answer_callback_query(call.id, f"پلن {call.data} انتخاب شد.")
+    #     await bot.send_message(chat_id, "شبکه مورد نظر را انتخاب کنید", reply_markup=keyboard_wallet)
 
-    elif call.data in ["بات پرو یک ماهه", "بات پرو سه ماهه", "بات پرو شش ماهه"]:
-        services.update_temp_service_pro(call.data, chat_id)
-        user_data[chat_id] = {"step":"BUY", "command":"botp"}
-        await bot.answer_callback_query(call.id, f"پلن {call.data} انتخاب شد.")
-        await bot.send_message(chat_id, "شبکه مورد نظر را انتخاب کنید", reply_markup=keyboard_wallet)
+    # elif call.data in ["بات پرو یک ماهه", "بات پرو سه ماهه", "بات پرو شش ماهه"]:
+    #     services.update_temp_service_pro(call.data, chat_id)
+    #     user_data[chat_id] = {"step":"BUY", "command":"botp"}
+    #     await bot.answer_callback_query(call.id, f"پلن {call.data} انتخاب شد.")
+    #     await bot.send_message(chat_id, "شبکه مورد نظر را انتخاب کنید", reply_markup=keyboard_wallet)
 
     elif call.data == "b":
         await bot.send_message(chat_id, "0x5d6b8c8c1577f2b71b9cca4492a2cbec57fd51a9")
@@ -764,7 +955,7 @@ async def plan(call):
         await bot.send_message(chat_id, "بعد از انجام واریز، فقط کافیست اسکرین‌شاتِ موفقیت‌آمیز بودنِ تراکنش را برای ما بفرستید.همکارانِ من در بخشِ فنی بلافاصله واریزی شما را بررسی و دسترسی‌تان را فعال می‌کنند.\nبرای ارسال عکس از دستور /عکس استفاده کنید.")
     
     elif call.data == "10":
-        await bot.send_message(chat_id, " 09012141102\nساعت پاسخگویی 12 الی 20")
+        await bot.send_message(chat_id, "موقتا غیر فعال")
     elif call.data == "20":
         await bot.send_message(chat_id, "🔵متصل هستید")
         await bot.send_message(chat_id, ".برای خروج از بخش پشتیبانی دستور /exit را وارد کنید\nسوال خود را بپرسید:")
@@ -779,31 +970,10 @@ async def plan(call):
             text += call.message.caption
             t = text + f"\n\nکارشناس:{admin_name}"
             await bot.edit_message_caption(chat_id=support_group_id, message_id=msg_id, caption=t)
-    elif accept:
-        action, t_c_id = call.data.split("_")
-        plann = services.get_temp(t_c_id)
-        try:
-            serv = services.get_service(t_c_id)[0]
-        except:
-            serv = "None"
-        c = allUser.get_invited(t_c_id)
-        if c != "None":
-            allUser.add_person(c[0])
-        ids = services.get_ids(t_c_id)
-        if serv == "None" or serv == [] or not serv or serv == "trial":
-            await bot.send_message(manager_chat_id, f"activate service for user:\n\ntrading view id 1 => {ids[0]}\ntrading view id 2 => {ids[1]}\nplan={plann}")
-            services.set_date_buy(t_c_id, plann)
-        else:
-            await bot.send_message(manager_chat_id, f"renewal service for user:\n\ntrading view id 1 => {ids[0]}\ntrading view id 2 => {ids[1]}\nplan={plann}")
-            services.set_date(t_c_id, plann)
-        services.set_service(service=plann[0], chat_id=t_c_id)
-        services.set_expiration_notified3(t_c_id)
-        await bot.edit_message_caption(chat_id=photo_group_id, message_id=msg_id, caption=f"توسط کارشناس {admin_name} تایید شد.")
-        await bot.send_message(t_c_id, """
-        فعال‌سازیِ دسترسی شما ✅
 
-        «واریزیِ شما توسطِ تیم فنی تأیید شد. به تیمِ حرفه‌ای LUXalpha خوش آمدید! 💎
-
+    elif activate:
+        action, ta_c_id = call.data.split("_")
+        await bot.send_message(ta_c_id, """
         دسترسیِ شما به اندیکاتور در اکانتِ تریدینگ‌ویو فعال شد.
 
         برای مشاهده و استفاده، کافیست:
@@ -819,7 +989,57 @@ async def plan(call):
         شما می‌پذیرید که اندیکاتورهای LUXalpha و ربات های luxalpha صرفاً ابزارهای کمکی جهت تحلیل بوده و مسئولیت نهایی تمامی معاملات، مدیریت سرمایه و حد ضرر، مستقیماً بر عهده تریدر است. ما هیچ‌گونه تعهدی نسبت به نتایج معاملات شخصی شما نداریم
         
         """, reply_markup=keyboard_help)
+        await bot.edit_message_text(chat_id=manager_chat_id, message_id=msg_id, text="فعال شد!")
+
+    elif accept:
+        action, t_c_id = call.data.split("_")
+        plann = services.get_temp(t_c_id)
+        c = allUser.get_invited(t_c_id)
+        tc = int(t_c_id)
+        user_data[tc] = {"step":"GET_TID"}
+        if c != "None":
+            allUser.add_person(c[0])
+        # ids = services.get_ids(t_c_id)
+        # if serv == "None" or serv == [] or not serv or serv == "trial":
+        #     await bot.send_message(manager_chat_id, f"activate service for user:\n\ntrading view id 1 => {ids[0]}\ntrading view id 2 => {ids[1]}\nplan={plann}")
+        #     services.set_date_buy(t_c_id, plann)
+        # else:
+        #     await bot.send_message(manager_chat_id, f"renewal service for user:\n\ntrading view id 1 => {ids[0]}\ntrading view id 2 => {ids[1]}\nplan={plann}")
+        #     services.set_date(t_c_id, plann)
+        services.set_expiration_notified3(t_c_id)
+        await bot.edit_message_caption(chat_id=photo_group_id, message_id=msg_id, caption=f"توسط کارشناس {admin_name} تایید شد.")
         await bot.send_document(t_c_id, document=andpdf)
+        await bot.send_message(t_c_id, """
+        فعال‌سازیِ دسترسی شما ✅
+
+«واریزیِ شما توسطِ تیم فنی تأیید شد. به تیمِ حرفه‌ای LUXalpha خوش آمدید! 💎
+لطفا جهت دریافت اندیکاتور ایدی تریدیگ ویو خودتونو کامل باری ما ارسال کنین تا بتونیم لایسنس شمارو متصل کنیم.
+        """, reply_markup=ReplyKeyboardRemove())
+
+    elif acceptu:
+        action, t_c_id = call.data.split("_")
+        plann = services.get_temp_u(t_c_id)
+        c = allUser.get_invited(t_c_id)
+        tc = int(t_c_id)
+        user_data[tc] = {"step":"GET_TIDU"}
+        if c != "None":
+            allUser.add_person(c[0])
+        # ids = services.get_ids(t_c_id)
+        # if serv == "None" or serv == [] or not serv or serv == "trial":
+        #     await bot.send_message(manager_chat_id, f"activate service for user:\n\ntrading view id 1 => {ids[0]}\ntrading view id 2 => {ids[1]}\nplan={plann}")
+        #     services.set_date_buy(t_c_id, plann)
+        # else:
+        #     await bot.send_message(manager_chat_id, f"renewal service for user:\n\ntrading view id 1 => {ids[0]}\ntrading view id 2 => {ids[1]}\nplan={plann}")
+        #     services.set_date(t_c_id, plann)
+        services.set_expiration_notified3(t_c_id)
+        await bot.edit_message_caption(chat_id=photo_group_id, message_id=msg_id, caption=f"توسط کارشناس {admin_name} تایید شد.")
+        await bot.send_document(t_c_id, document=andpdf)
+        await bot.send_message(t_c_id, """
+        فعال‌سازیِ دسترسی شما ✅
+
+«واریزیِ شما توسطِ تیم فنی تأیید شد. به تیمِ حرفه‌ای LUXalpha خوش آمدید! 💎
+لطفا جهت دریافت اندیکاتور ایدی تریدیگ ویو خودتونو کامل باری ما ارسال کنین تا بتونیم لایسنس شمارو متصل کنیم.
+        """, reply_markup=ReplyKeyboardRemove())
         
     elif rejet:
         msg_id = call.message.message_id
@@ -828,140 +1048,470 @@ async def plan(call):
         await bot.send_message(target_chat_id, """واریز شما توسط کارشناس مربوطه رد شد.""", reply_markup=keyboard_help)
 
 
-    elif accept_pro:
-        action, t_c_id = call.data.split("_")
-        plann = services.get_temp_pro(t_c_id)[0]
-        try:
-            coun = services.get_counter_p(t_c_id)[0]
-        except:
-            coun = 100
-        li = await create_license(t_c_id, str(coun)+"pro")
-        services.increase_counter_p(t_c_id)
-        try:
-            serv = services.get_service_pro(t_c_id)[0]
-        except:
-            serv = "None"
-        if serv == "None" or serv == [] or not serv or serv == "trial":
-            services.del_license_p(t_c_id)
-            services.register_licese_p(t_c_id, li, 99)
-            services.set_date_buy_p(t_c_id, plann)
-        else:
-            services.update_license_p(t_c_id, li)
-            services.set_date_p(t_c_id, plann)
+#     elif accept_pro:
+#         action, t_c_id = call.data.split("_")
+#         plann = services.get_temp_pro(t_c_id)[0]
+#         try:
+#             coun = services.get_counter_p(t_c_id)[0]
+#         except:
+#             coun = 100
+#         li = await create_license(t_c_id, str(coun)+"pro")
+#         services.increase_counter_p(t_c_id)
+#         try:
+#             serv = services.get_service_pro(t_c_id)[0]
+#         except:
+#             serv = "None"
+#         if serv == "None" or serv == [] or not serv or serv == "trial":
+#             services.del_license_p(t_c_id)
+#             services.register_licese_p(t_c_id, li, 99)
+#             services.set_date_buy_p(t_c_id, plann)
+#         else:
+#             services.update_license_p(t_c_id, li)
+#             services.set_date_p(t_c_id, plann)
 
-        c = allUser.get_invited(t_c_id)
-        if c != "None":
-            allUser.add_person(c[0])
-        services.set_service_pro(service=plann, chat_id=t_c_id)
-        services.set_account_id_p(t_c_id, "allTimeFull")
-        await bot.edit_message_caption(chat_id=photo_group_id, message_id=msg_id, caption=f"توسط کارشناس {admin_name} تایید شد.")
-        await bot.send_message(t_c_id, """
-تبریک می‌گوییم! شما اکنون به تکنولوژی LUXalpha مجهز شدید. 🚀
+#         c = allUser.get_invited(t_c_id)
+#         if c != "None":
+#             allUser.add_person(c[0])
+#         services.set_service_pro(service=plann, chat_id=t_c_id)
+#         services.set_account_id_p(t_c_id, "allTimeFull")
+#         await bot.edit_message_caption(chat_id=photo_group_id, message_id=msg_id, caption=f"توسط کارشناس {admin_name} تایید شد.")
+#         await bot.send_message(t_c_id, """
+# تبریک می‌گوییم! شما اکنون به تکنولوژی LUXalpha مجهز شدید. 🚀
 
-دوست عزیز، ورود شما را به جمع معامله‌گران هوشمند لوکس‌آلفا تبریک می‌گوییم. فایل ربات و لایسنس اختصاصی شما آماده است. لطفاً پیش از هر اقدامی، این چند نکته حیاتی را با دقت مطالعه کنید:
+# دوست عزیز، ورود شما را به جمع معامله‌گران هوشمند لوکس‌آلفا تبریک می‌گوییم. فایل ربات و لایسنس اختصاصی شما آماده است. لطفاً پیش از هر اقدامی، این چند نکته حیاتی را با دقت مطالعه کنید:
 
-1️⃣ مشاهده ویدئوی آموزشی (الزامی):
+# 1️⃣ مشاهده ویدئوی آموزشی (الزامی):
 
-ابتدا ویدئوی آموزشی که در [لینک یا پیوست] برای شما قرار داده شده را تا انتها ببینید. تنظیمات دقیق، نحوه اتصال به متاتریدر و مدیریت ریسک در این ویدئو گام‌به‌گام توضیح داده شده است. عدم رعایت این تنظیمات می‌تواند منجر به عملکرد نادرست ربات شود.
+# ابتدا ویدئوی آموزشی که در [لینک یا پیوست] برای شما قرار داده شده را تا انتها ببینید. تنظیمات دقیق، نحوه اتصال به متاتریدر و مدیریت ریسک در این ویدئو گام‌به‌گام توضیح داده شده است. عدم رعایت این تنظیمات می‌تواند منجر به عملکرد نادرست ربات شود.
 
-2️⃣ محدودیت تعداد سیستم (License Limit):
+# 2️⃣ محدودیت تعداد سیستم (License Limit):
 
-لایسنس شما به صورت اختصاصی صادر شده و تنها روی 1 سیستم قابل اجراست. پیشنهاد ما استفاده از یک سیستم شخصی و یک VPS (سرور مجازی) است تا ربات ۲۴ ساعته فعال بماند.
+# لایسنس شما به صورت اختصاصی صادر شده و تنها روی 1 سیستم قابل اجراست. پیشنهاد ما استفاده از یک سیستم شخصی و یک VPS (سرور مجازی) است تا ربات ۲۴ ساعته فعال بماند.
 
-3️⃣ هشدار مهم - عدم امکان ریست لایسنس:
+# 3️⃣ هشدار مهم - عدم امکان ریست لایسنس:
 
-توجه داشته باشید که لایسنس‌های صادر شده تحت هیچ شرایطی امکان ریست یا انتقال به سیستم جدید را ندارند. بنابراین در انتخاب سیستم‌هایی که می‌خواهید ربات را روی آن‌ها فعال کنید، نهایت دقت را داشته باشید و از لایسنس خود مانند دارایی ارزشمندتان مراقبت کنید.
+# توجه داشته باشید که لایسنس‌های صادر شده تحت هیچ شرایطی امکان ریست یا انتقال به سیستم جدید را ندارند. بنابراین در انتخاب سیستم‌هایی که می‌خواهید ربات را روی آن‌ها فعال کنید، نهایت دقت را داشته باشید و از لایسنس خود مانند دارایی ارزشمندتان مراقبت کنید.
 
-✅ پشتیبانی:
+# ✅ پشتیبانی:
 
-اگر در حین نصب یا بر اساس ویدئوی آموزشی به سوالی برخوردید، تیم پشتیبانی ما در کنار شماست.
+# اگر در حین نصب یا بر اساس ویدئوی آموزشی به سوالی برخوردید، تیم پشتیبانی ما در کنار شماست.
       
-با LUXalpha، هوشمندانه و با انضباط معامله کنید.
-""", reply_markup=keyboard_help)
+# با LUXalpha، هوشمندانه و با انضباط معامله کنید.
+# """, reply_markup=keyboard_help)
         
-        await bot.send_message(t_c_id, "لایسنس شما:")
-        await bot.send_message(t_c_id, li)
-        await bot.send_document(t_c_id, ex_id_pro)
-        await bot.send_message(t_c_id, "http://155.117.13.137:8080")
-        await bot.send_voice(t_c_id, voice_id)
-        await bot.send_message(t_c_id, "اگر چنانچه مشکلی در نصب و راه اندازی ربات داشتین با ایدی\n @luxalphafxx \n ارتباط بگیرید")
+#         await bot.send_message(t_c_id, "لایسنس شما:")
+#         await bot.send_message(t_c_id, li)
+#         await bot.send_document(t_c_id, ex_id_pro)
+#         await bot.send_message(t_c_id, "http://155.117.13.137:8080")
+#         await bot.send_voice(t_c_id, voice_id)
+#         await bot.send_message(t_c_id, "اگر چنانچه مشکلی در نصب و راه اندازی ربات داشتین با ایدی\n @luxalphafxx \n ارتباط بگیرید")
 
-    elif reject_pro:
-        msg_id = call.message.message_id
-        await bot.edit_message_caption(chat_id=photo_group_id, message_id=msg_id, caption=f"توسط کارشناس {admin_name} رد شد.")
-        action, target_chat_id = call.data.split("_")
-        await bot.send_message(target_chat_id, """واریز شما توسط کارشناس مربوطه رد شد.""", reply_markup=keyboard_help)
+#     elif reject_pro:
+#         msg_id = call.message.message_id
+#         await bot.edit_message_caption(chat_id=photo_group_id, message_id=msg_id, caption=f"توسط کارشناس {admin_name} رد شد.")
+#         action, target_chat_id = call.data.split("_")
+#         await bot.send_message(target_chat_id, """واریز شما توسط کارشناس مربوطه رد شد.""", reply_markup=keyboard_help)
 
-    elif accept_bot:
-        action, t_c_id = call.data.split("_")
-        plann = services.get_temp_bot(t_c_id)[0]
-        try:
-            coun = services.get_counter(t_c_id)[0]
-        except:
-            coun = 100
-        li = await create_license(t_c_id, coun)
-        services.increase_counter(t_c_id)
-        try:
-            serv = services.get_service_bot(t_c_id)[0]
-        except:
-            serv = "None"
-        if serv == "None" or serv == [] or not serv or serv == "trial":
-            services.del_license(t_c_id)
-            services.register_licese(t_c_id, li, 99)
-            services.set_date_buy_bot(t_c_id, plann)
-        else:
-            services.update_license(t_c_id, li)
-            services.set_date_bot(t_c_id, plann)
+#     elif accept_bot:
+#         action, t_c_id = call.data.split("_")
+#         plann = services.get_temp_bot(t_c_id)[0]
+#         try:
+#             coun = services.get_counter(t_c_id)[0]
+#         except:
+#             coun = 100
+#         li = await create_license(t_c_id, coun)
+#         services.increase_counter(t_c_id)
+#         try:
+#             serv = services.get_service_bot(t_c_id)[0]
+#         except:
+#             serv = "None"
+#         if serv == "None" or serv == [] or not serv or serv == "trial":
+#             services.del_license(t_c_id)
+#             services.register_licese(t_c_id, li, 99)
+#             services.set_date_buy_bot(t_c_id, plann)
+#         else:
+#             services.update_license(t_c_id, li)
+#             services.set_date_bot(t_c_id, plann)
 
-        c = allUser.get_invited(t_c_id)
-        if c != "None":
-            allUser.add_person(c[0])
-        services.set_service_bot(service=plann, chat_id=t_c_id)
-        services.set_account_id(t_c_id, "allTimeFull")
-        await bot.edit_message_caption(chat_id=photo_group_id, message_id=msg_id, caption=f"توسط کارشناس {admin_name} تایید شد.")
-        await bot.send_message(t_c_id, """
-تبریک می‌گوییم! شما اکنون به تکنولوژی LUXalpha مجهز شدید. 🚀
+#         c = allUser.get_invited(t_c_id)
+#         if c != "None":
+#             allUser.add_person(c[0])
+#         services.set_service_bot(service=plann, chat_id=t_c_id)
+#         services.set_account_id(t_c_id, "allTimeFull")
+#         await bot.edit_message_caption(chat_id=photo_group_id, message_id=msg_id, caption=f"توسط کارشناس {admin_name} تایید شد.")
+#         await bot.send_message(t_c_id, """
+# تبریک می‌گوییم! شما اکنون به تکنولوژی LUXalpha مجهز شدید. 🚀
 
-دوست عزیز، ورود شما را به جمع معامله‌گران هوشمند لوکس‌آلفا تبریک می‌گوییم. فایل ربات و لایسنس اختصاصی شما آماده است. لطفاً پیش از هر اقدامی، این چند نکته حیاتی را با دقت مطالعه کنید:
+# دوست عزیز، ورود شما را به جمع معامله‌گران هوشمند لوکس‌آلفا تبریک می‌گوییم. فایل ربات و لایسنس اختصاصی شما آماده است. لطفاً پیش از هر اقدامی، این چند نکته حیاتی را با دقت مطالعه کنید:
 
-1️⃣ مشاهده ویدئوی آموزشی (الزامی):
+# 1️⃣ مشاهده ویدئوی آموزشی (الزامی):
 
-ابتدا ویدئوی آموزشی که در [لینک یا پیوست] برای شما قرار داده شده را تا انتها ببینید. تنظیمات دقیق، نحوه اتصال به متاتریدر و مدیریت ریسک در این ویدئو گام‌به‌گام توضیح داده شده است. عدم رعایت این تنظیمات می‌تواند منجر به عملکرد نادرست ربات شود.
+# ابتدا ویدئوی آموزشی که در [لینک یا پیوست] برای شما قرار داده شده را تا انتها ببینید. تنظیمات دقیق، نحوه اتصال به متاتریدر و مدیریت ریسک در این ویدئو گام‌به‌گام توضیح داده شده است. عدم رعایت این تنظیمات می‌تواند منجر به عملکرد نادرست ربات شود.
 
-2️⃣ محدودیت تعداد سیستم (License Limit):
+# 2️⃣ محدودیت تعداد سیستم (License Limit):
 
-لایسنس شما به صورت اختصاصی صادر شده و تنها روی ۲ سیستم (یا ۲ شماره حساب متاتریدر) قابل اجراست. پیشنهاد ما استفاده از یک سیستم شخصی و یک VPS (سرور مجازی) است تا ربات ۲۴ ساعته فعال بماند.
+# لایسنس شما به صورت اختصاصی صادر شده و تنها روی ۲ سیستم (یا ۲ شماره حساب متاتریدر) قابل اجراست. پیشنهاد ما استفاده از یک سیستم شخصی و یک VPS (سرور مجازی) است تا ربات ۲۴ ساعته فعال بماند.
 
-3️⃣ هشدار مهم - عدم امکان ریست لایسنس:
+# 3️⃣ هشدار مهم - عدم امکان ریست لایسنس:
 
-توجه داشته باشید که لایسنس‌های صادر شده تحت هیچ شرایطی امکان ریست یا انتقال به سیستم جدید را ندارند. بنابراین در انتخاب سیستم‌هایی که می‌خواهید ربات را روی آن‌ها فعال کنید، نهایت دقت را داشته باشید و از لایسنس خود مانند دارایی ارزشمندتان مراقبت کنید.
+# توجه داشته باشید که لایسنس‌های صادر شده تحت هیچ شرایطی امکان ریست یا انتقال به سیستم جدید را ندارند. بنابراین در انتخاب سیستم‌هایی که می‌خواهید ربات را روی آن‌ها فعال کنید، نهایت دقت را داشته باشید و از لایسنس خود مانند دارایی ارزشمندتان مراقبت کنید.
 
-✅ پشتیبانی:
+# ✅ پشتیبانی:
 
-اگر در حین نصب یا بر اساس ویدئوی آموزشی به سوالی برخوردید، تیم پشتیبانی ما در کنار شماست.
+# اگر در حین نصب یا بر اساس ویدئوی آموزشی به سوالی برخوردید، تیم پشتیبانی ما در کنار شماست.
       
-با LUXalpha، هوشمندانه و با انضباط معامله کنید.
-""", reply_markup=keyboard_help)
+# با LUXalpha، هوشمندانه و با انضباط معامله کنید.
+# """, reply_markup=keyboard_help)
         
-        await bot.send_message(t_c_id, "لایسنس شما:")
-        await bot.send_message(t_c_id, li)
-        await bot.send_message(t_c_id, "http://155.117.13.137:8000")
-        await bot.send_document(t_c_id, ex_id)
-        await bot.send_voice(t_c_id, voice_id)
-        await bot.send_message(t_c_id, "اگر چنانچه مشکلی در نصب و راه اندازی ربات داشتین با ایدی\n @luxalphafxx \n ارتباط بگیرید")
+#         await bot.send_message(t_c_id, "لایسنس شما:")
+#         await bot.send_message(t_c_id, li)
+#         await bot.send_message(t_c_id, "http://155.117.13.137:8000")
+#         await bot.send_document(t_c_id, ex_id)
+#         await bot.send_voice(t_c_id, voice_id)
+#         await bot.send_message(t_c_id, "اگر چنانچه مشکلی در نصب و راه اندازی ربات داشتین با ایدی\n @luxalphafxx \n ارتباط بگیرید")
     
-    elif reject_bot:
-        msg_id = call.message.message_id
-        await bot.edit_message_caption(chat_id=photo_group_id, message_id=msg_id, caption=f"توسط کارشناس {admin_name} رد شد.")
-        action, target_chat_id = call.data.split("_")
-        await bot.send_message(target_chat_id, """واریز شما توسط کارشناس مربوطه رد شد.""", reply_markup=keyboard_help)
+#     elif reject_bot:
+#         msg_id = call.message.message_id
+#         await bot.edit_message_caption(chat_id=photo_group_id, message_id=msg_id, caption=f"توسط کارشناس {admin_name} رد شد.")
+#         action, target_chat_id = call.data.split("_")
+#         await bot.send_message(target_chat_id, """واریز شما توسط کارشناس مربوطه رد شد.""", reply_markup=keyboard_help)
 
+@bot.message_handler(content_types=['new_chat_members'])
+async def kick(message):
+    group_id = message.chat.id
+    print(group_id)
+    if str(group_id) == str(vip_id):
+        new_members = message.new_chat_members
+        
+        for user in new_members:
+            user_id = user.id
+            print(f"Checking user: {user_id}")
+           
+            has_subscription = allUser.check_user(user_id)
+           
+            try:
+                if not has_subscription:
+                    print(f"User {user_id} is NOT VIP. Attempting to ban...")
+                    result = await bot.kick_chat_member(vip_id, user_id)
+                    print(f"Ban Result: {result}")
+            except:
+                pass
+
+@bot.message_handler(content_types=['photo'])
+async def handle_photo(message):
+    chat_id = message.chat.id
+    file_id = message.photo[-1].file_id
+    print(file_id)
+    if chat_id in user_data and user_data[chat_id]['step'] == "support":
+        pic = message.photo[-1].file_id
+        caption = message.caption
+        await bot.send_photo(chat_id=support_group_id, photo=pic, caption=f"پیام ارسال شده از {message.from_user.first_name}\nID:{chat_id}\n\n{caption}", reply_markup=keyboard_claim)
+        await bot.send_message(chat_id, "پیام به کارشناس مربوطه ارسال شد.در اسرع وقت به درخواست شما رسیدگی میشود.در صورت تمایل برای ادامه گف و گو پیام خود را ارسال کنید .درغیر این صورت دستور /exit را ارسال کنید.")
+        return
+    if chat_id in user_data and user_data[chat_id]["command"] == "bot":
+        p = services.get_temp_bot(chat_id)
+    elif chat_id in user_data and user_data[chat_id]["command"] == "botp":
+        p = services.get_temp_pro(chat_id)
+    elif chat_id in user_data and user_data[chat_id]['command'] == 'andu':
+        p = services.get_temp_u(chat_id)
+    else:
+        p = services.get_temp(chat_id)
+    file_id = message.photo[-1].file_id
+    full_caption = f"📸 عکس ارسالی از: {message.from_user.first_name}\nID:{chat_id}\nplan:{p[0]}"
+    if chat_id in user_data and user_data[chat_id]["command"] == "and":
+        check_keyboard = types.InlineKeyboardMarkup()
+        button1 = types.InlineKeyboardButton(text="accept✅", callback_data=f"accept_{chat_id}")
+        button2 = types.InlineKeyboardButton(text="reject❌", callback_data=f"reject_{chat_id}")
+        check_keyboard.add(button1, button2)
+
+    elif chat_id in user_data and user_data[chat_id]["command"] == "andu":
+        check_keyboard = types.InlineKeyboardMarkup()
+        button1 = types.InlineKeyboardButton(text="accept✅", callback_data=f"acceptu_{chat_id}")
+        button2 = types.InlineKeyboardButton(text="reject❌", callback_data=f"reject_{chat_id}")
+        check_keyboard.add(button1, button2)
+
+    elif chat_id in user_data and user_data[chat_id]["command"] == "botp":
+        check_keyboard = types.InlineKeyboardMarkup()
+        button1 = types.InlineKeyboardButton(text="accept✅", callback_data=f"pro accept_{chat_id}")
+        button2 = types.InlineKeyboardButton(text="reject❌", callback_data=f"pro reject_{chat_id}")
+        check_keyboard.add(button1, button2)
+
+    else:
+        check_keyboard = types.InlineKeyboardMarkup()
+        button1 = types.InlineKeyboardButton(text="accept✅", callback_data=f"bot accept_{chat_id}")
+        button2 = types.InlineKeyboardButton(text="reject❌", callback_data=f"bot reject_{chat_id}")
+        check_keyboard.add(button1, button2)
+    await bot.send_photo(chat_id=photo_group_id, photo=file_id, reply_markup=check_keyboard, caption=full_caption)
+    await bot.send_message(chat_id, "✅ تصویر شما با موفقیت به مجموعه کارشناسان LUXalpha ارسال شد و پس از تایید دسترسی شما فعال میشود ", reply_markup=None)
+    del user_data[chat_id]
+
+
+# @bot.message_handler(content_types=['video'])
+# async def get_fid(message):
+#     file_id = message.video.file_id
+#     print(file_id)
+
+# @bot.message_handler(content_types=['document'])
+# async def get_fid(message):
+#     file_id = message.document.file_id
+#     print(file_id)
+
+
+
+@bot.message_handler(commands=['help'])
+async def get_help(message):
+    await bot.reply_to(message, """
+                           
+
+🔹 خرید اشتراک ▫️▫️▫️▫️▫️ /خرید
+🔹 مشاهده پروفایل ▫️▫️▫️ /پروفایل
+🔸 ویرایش پروفایل ▫️▫️▫️ /ویرایش
+🔹 سوالات متداول ▫️▫️▫️ /سوالات
+🔹 ارسال عکس واریزی ▫️▫️ /عکس
+🔸 پشتیبانی ▫️▫️▫️▫️▫️ /پشتیبانی
+🔸 ثبت اطلاعات ▫️▫️▫️▫️▫️10
+➖➖➖➖➖➖➖➖➖➖
+🔑 ورود به پنل ادمین ▫️▫️ /ادمین
+🔑 ورود به پنل مدیریت ▫️ /مدیر
+                           
+            
+                           """)
+    
+##############################################temp
+# @bot.message_handler(commands=['get_id'])
+# async def get_chat_id(message):
+#     chat_id = message.chat.id
+#     await bot.send_message(chat_id, chat_id)
+
+@bot.message_handler(commands=['پروفایل'])
+async def get_profile(message):
+    chat_id = message.chat.id
+    info = allUser.get_info(chat_id)
+    try:
+        id1u, id2u = services.get_ids(chat_id)
+    except:
+        id1u, id2u = ['ندارد', 'ندارد']
+    try:
+        date3 = services.get_date_3(chat_id)[0]
+    except:
+        date3 = ''
+    try:
+        date_and = services.get_date(chat_id)[0]
+    except Exception as e:
+        print(f"a:{e}")
+        date_and = ''
+
+    try:
+        id1, id2 = services.get_ids_u(chat_id)
+    except:
+        id1, id2 = ['ندارد', 'ندارد']
+    try:
+        date_andu = services.get_date_u(chat_id)[0]
+    except Exception as e:
+        print(f"a:{e}")
+        date_andu = ''
+    # try:
+    #     date_bot = services.get_date_bot(chat_id)[0]
+    # except Exception as e:
+    #     print(f"b:{e}")
+    #     date_bot = ''
+    
+    # try:
+    #     date_pro = services.get_date_pro(chat_id)[0]
+    # except:
+    #     date_pro = ''
+
+    try:
+        service = services.get_service(chat_id)[0]
+    except:
+        service = 'None'
+
+    try:
+        serviceu = services.get_service_u(chat_id)[0]
+    except:
+        serviceu = 'None'
+    # try:
+    #     service_bot = services.get_service_bot(chat_id)[0]
+    # except:
+    #     service_bot = 'None'
+    # try:
+    #     service_pro = services.get_service_pro(chat_id)[0]
+    # except:
+    #     service = 'None'
+
+    if not info:
+        await bot.send_message(chat_id, "اطلاعات شما ثبت نشده.")
+
+    else:
+        if service != 'trial' and serviceu != 'trial':
+            profile_text = (
+                f"👤 نام: {info[0]} {info[1]}\n"
+                f"📞 شماره: {info[2]}\n\n"
+                # f"🎫 کد معرف: {info[3]}\n"
+                # f"👍کاربران دعوت کرده: {info[7]}\n\n"
+                f"💹اشتراک: {service}\n"
+                f"🆔 تریدینگ‌ویو: {id1}\n"
+                f"📅 تاریخ انقضا: {date_and}\n\n"
+                f"💹اشتراک الترا: {serviceu}\n"
+                f"🆔 تریدینگ‌ویو: {id1u}\n"
+                f"📅 تاریخ انقضا: {date_andu}"
+                # f"🤖 لایسنس ربات: {service_bot}\n"
+                # f"📅 تاریخ انقضا ربات: {date_bot}\n\n"
+                # f"🤖 لایسنس ربات پرو: {service_pro}\n"
+                # f"📅 تاریخ انقضا ربات پرو: {date_pro}"
+            )
+            await bot.send_message(chat_id, profile_text)
+        elif service == "trial" and serviceu != "trial":
+            profile_text = (
+                f"👤 نام: {info[0]} {info[1]}\n"
+                f"📞 شماره: {info[2]}\n\n"
+                # f"🎫 کد معرف: {info[3]}\n"
+                # f"👍کاربران دعوت کرده: {info[7]}\n\n"
+                f"💹اشتراک: {service}\n"
+                f"🆔 تریدینگ‌ویو: {id1}\n"
+                f"📅 تاریخ انقضا: {date3}\n\n"
+                f"💹اشتراک الترا: {serviceu}\n"
+                f"🆔 تریدینگ‌ویو: {id1u}\n"
+                f"📅 تاریخ انقضا: {date_andu}"
+                # f"🤖 لایسنس ربات: {service_bot}\n"
+                # f"📅 تاریخ انقضا ربات: {date_bot}\n\n"
+                # f"🤖 لایسنس ربات پرو: {service_pro}\n"
+                # f"📅 تاریخ انقضا ربات پرو: {date_pro}"
+            )
+            await bot.send_message(chat_id, profile_text)
+        elif service != "trial" and serviceu == "trial":
+            profile_text = (
+                f"👤 نام: {info[0]} {info[1]}\n"
+                f"📞 شماره: {info[2]}\n\n"
+                # f"🎫 کد معرف: {info[3]}\n"
+                # f"👍کاربران دعوت کرده: {info[7]}\n\n"
+                f"💹اشتراک: {service}\n"
+                f"🆔 تریدینگ‌ویو: {id1}\n"
+                f"📅 تاریخ انقضا: {date_and}\n\n"
+                f"💹اشتراک الترا: {serviceu}\n"
+                f"🆔 تریدینگ‌ویو: {id1u}\n"
+                f"📅 تاریخ انقضا: {date3}"
+                # f"🤖 لایسنس ربات: {service_bot}\n"
+                # f"📅 تاریخ انقضا ربات: {date_bot}\n\n"
+                # f"🤖 لایسنس ربات پرو: {service_pro}\n"
+                # f"📅 تاریخ انقضا ربات پرو: {date_pro}"
+            )
+            await bot.send_message(chat_id, profile_text)
+        elif service == "trial" and serviceu == "trial":
+            profile_text = (
+                f"👤 نام: {info[0]} {info[1]}\n"
+                f"📞 شماره: {info[2]}\n\n"
+                # f"🎫 کد معرف: {info[3]}\n"
+                # f"👍کاربران دعوت کرده: {info[7]}\n\n"
+                f"💹اشتراک: {service}\n"
+                f"🆔 تریدینگ‌ویو: {id1}\n"
+                f"📅 تاریخ انقضا: {date3}\n\n"
+                f"💹اشتراک الترا: {serviceu}\n"
+                f"🆔 تریدینگ‌ویو: {id1u}\n"
+                f"📅 تاریخ انقضا: {date3}"
+                # f"🤖 لایسنس ربات: {service_bot}\n"
+                # f"📅 تاریخ انقضا ربات: {date_bot}\n\n"
+                # f"🤖 لایسنس ربات پرو: {service_pro}\n"
+                # f"📅 تاریخ انقضا ربات پرو: {date_pro}"
+            )
+            await bot.send_message(chat_id, profile_text)
+
+
+
+@bot.message_handler(commands=["ویرایش"])
+async def edit_p(message):
+    chat_id = message.chat.id
+    exist = allUser.exist_user(chat_id)
+    if not exist:
+        await bot.send_message(chat_id, "اطلاعات شما ثبت نشده.")
+    else:
+        await bot.send_message(chat_id, "نام خود را وارد کنید:")
+        user_data[chat_id] = {"step":"GET_NAME", "command":"edit"}
+
+@bot.message_handler(commands=["سوالات"])
+async def get_ask(message):
+    global questions
+    await bot.reply_to(message, questions)
+
+@bot.message_handler(commands=["پشتیبانی"])
+async def get_support(message):
+    await bot.reply_to(message, """
+به پشتیبانی مجموعه LUXalpha خوش امدید.
+برای دریافت اطلاعات تماس گزینه 1
+برای اتصال مستقیم به پشتیبان گزینه 2
+را انتخاب کنید
+""",reply_markup=keyboard_support)
+
+@bot.message_handler(func=lambda message: message.reply_to_message)
+async def answer(message):
+    original_msg = message.reply_to_message.text
+    target_user_id = original_msg.split("ID:")[1].split("\n")[0].strip()
+
+    admin_answer = message.text
+    final_msg = f"🎧 پاسخ پشتیبانی:\n\n{admin_answer}"
+    
+    await bot.send_message(target_user_id, final_msg)
+
+@bot.message_handler(content_types=['video'])
+async def get_document_file_id(message):
+    if message.video:
+        file_id = message.video.file_id
+        print(f"📄 File ID:\n{file_id}")
+    
 @bot.message_handler(func=lambda message: message.chat.id in user_data)
 async def handle_steps(message):
     chat_id = message.chat.id
     text = message.text
     user_id = message.from_user.id
-    if user_data[chat_id]["step"] == "GET_NAME":
+    if user_data[chat_id]["step"] == "GET_TID":
+        user_data[chat_id]["tid"] = text
+        user_data[chat_id]["tid2"] = "allTimeFull"
+        services.set_ids(chat_id, user_data[chat_id]["tid"], user_data[chat_id]["tid2"])
+        del user_data[chat_id]
+        await bot.send_message(chat_id, "دریافت شد.")
+        keyboard_activate = types.InlineKeyboardMarkup()
+        buttonac1 = types.InlineKeyboardButton(text="فعال شد", callback_data=f"activate_{chat_id}")
+        keyboard_activate.add(buttonac1)
+        plann = services.get_temp(chat_id)[0]
+        ids = services.get_ids(chat_id)
+        try:
+            serv = services.get_service(chat_id)[0]
+        except:
+            serv = 'None'
+        if serv == "None" or serv == [] or not serv or serv == "trial":
+            await bot.send_message(manager_chat_id, f"activate service for user:\n\ntrading view id => {ids[0]}\nplan={plann}", reply_markup=keyboard_activate)
+            services.set_service(service=plann, chat_id=chat_id)
+            services.set_date_buy(chat_id, plann)
+        else:
+            await bot.send_message(manager_chat_id, f"renewal service for user:\n\ntrading view id => {ids[0]}\nplan={plann}", reply_markup=keyboard_activate)
+            services.set_service(service=plann, chat_id=chat_id)
+            services.set_date(chat_id, plann)
+
+    elif user_data[chat_id]["step"] == "GET_TIDU":
+        user_data[chat_id]["tid"] = text
+        user_data[chat_id]["tid2"] = "allTimeFull"
+        services.set_ids_u(chat_id, user_data[chat_id]["tid"], user_data[chat_id]["tid2"])
+        del user_data[chat_id]
+        await bot.send_message(chat_id, "دریافت شد.")
+        keyboard_activate = types.InlineKeyboardMarkup()
+        buttonac1 = types.InlineKeyboardButton(text="فعال شد", callback_data=f"activate_{chat_id}")
+        keyboard_activate.add(buttonac1)
+        plann = services.get_temp_u(chat_id)[0]
+        ids = services.get_ids_u(chat_id)
+        try:
+            serv = services.get_service_u(chat_id)[0]
+        except:
+            serv = 'None'
+        if serv == "None" or serv == [] or not serv or serv == "trial":
+            await bot.send_message(manager_chat_id, f"activate service for user:\n\ntrading view id => {ids[0]}\nplan={plann}", reply_markup=keyboard_activate)
+            services.set_service_u(service=plann, chat_id=chat_id)
+            services.set_date_buy_u(chat_id, plann)
+        else:
+            await bot.send_message(manager_chat_id, f"renewal service for user:\n\ntrading view id => {ids[0]}\nplan={plann}", reply_markup=keyboard_activate)
+            services.set_service_u(service=plann, chat_id=chat_id)
+            services.set_date_u(chat_id, plann)
+
+    elif user_data[chat_id]["step"] == "GET_NAME":
         user_data[chat_id]["name"] = text
         user_data[chat_id]["step"] = "GET_FNAME"
         await bot.reply_to(message, "نام خانوادگی خود را وارد کنید:")
@@ -973,92 +1523,62 @@ async def handle_steps(message):
 
     elif user_data[chat_id]["step"] == "GET_PHONE":
         user_data[chat_id]["phone"] = text
-        user_data[chat_id]["step"] = "GET_CODE"
-        await bot.reply_to(message, "کد معرف را وارد کنید یا /pass را بفرستید:")
-
-    elif user_data[chat_id]["step"] == "GET_CODE":
-        if text == "/pass":
-            text = 'None'
-        elif text != "/pass":
-            rr = allUser.exist_code(text)
-            if not rr:
-                await bot.reply_to(message, "کد معرف وجود ندارد")
-        c = await cod(chat_id)
-        user_data[chat_id]["c"] = c
-        user_data[chat_id]["code"] = text
+        # c = await cod(chat_id)
+        user_data[chat_id]["c"] = 'EMPTY'
+        user_data[chat_id]["code"] = 'EMPTY'
         summary = (f"✅ اطلاعات شما ثبت شد:\n"
             f"👤 نام: {user_data[chat_id]['name']} {user_data[chat_id]['fname']}\n"
             f"📞 شماره: {user_data[chat_id]['phone']}\n"
-            f"👍کاربران دعوت کرده: 0\n"
-            f"🎫 کد معرف شما: {c}")
+        )
         summary2 = (f"✅ اطلاعات شما ویرایش شد:\n"
             f"👤 نام: {user_data[chat_id]['name']} {user_data[chat_id]['fname']}\n"
             f"📞 شماره: {user_data[chat_id]['phone']}\n"
-            f"🎫 کد معرف شما: {c}")
+        )
         
         if "command" in user_data[chat_id]:
             if user_data[chat_id]["command"] == "10":
-                #await send_message(session, 1195924677, f"activate service for user:\n\ntrading view id 1 => {user_data[chat_id]['tid']}\ntrading view id 2 => {user_data[chat_id]['tid2']}")
                 await bot.send_message(chat_id, summary)
                 await bot.send_message(chat_id, f"""بسیار عالی! خوش‌آمدی به جمع تریدرهای هوشمند LUXalpha. 🚀
-
-        برای شروع تست ۳ روزه‌، لطفاً مراحل زیر رو به ترتیب انجام بده:
-
-        ۱. مشاهده آموزش (بسیار مهم):
-
-        قبل از هر چیز، این فیلم آموزشی رو با دقت کامل ببین. توی این ویدیو یاد می‌گیری چطور استراتژی اسمارت‌مانی رو با اندیکاتور ست کنی تا فقط روی سیگنال‌های با کیفیت (ریوارد ۳) تمرکز کنی
-
-        ۲. عضویت در گروه VIP Signal:
-
-        بعد از اینکه ویدیو رو کامل دیدی، حالا می‌تونی وارد گروه سیگنال و ترید لایو بشی و نتایج رو به صورت لحظه‌ای دنبال کنی:
-
-        https://t.me/+7vOZgpnSZmw5Y2Q0
-
-        ⚠️ نکته طلایی و توصیه ما:
-
-        توصیه اکید می‌کنیم در این ۳ روز، تمام معاملاتت رو فقط در حساب دمو (Demo) انجام بدی. این کار باعث میشه بدون ریسکِ مالی، به استراتژی مسلط بشی. هر سوالی هم در حین ترید داشتی، همین‌جا از من بپرس تا راهنماییت کنم.
- 
-        آماده‌ای که اولین تریدت رو با LUXalpha شکار کنی؟ 🎯""", reply_markup=learn_keyboard)
-                await bot.send_message(chat_id, "💎💎💎💎💎💎💎💎💎💎")
-                li = await create_license(chat_id, 1010)
-                lip = await create_license(chat_id, "pro")
-                await bot.send_message(chat_id, "لایسنس سه روزه ربات لوکس الفا:")
-                await bot.send_message(chat_id, li)
-                await bot.send_document(chat_id, ex_id)
-                await bot.send_message(chat_id, "http://155.117.13.137:8000")
-                await bot.send_message(chat_id, "💎💎💎💎💎💎💎💎💎💎")
-                await bot.send_message(chat_id, "لایسنس سه روزه ربات لوکس الفا پرو:")
-                await bot.send_message(chat_id, lip)
-                await bot.send_document(chat_id, ex_id_pro)
-                await bot.send_message(chat_id, "http://155.117.13.137:8080")
-                await bot.send_message(chat_id, "💎💎💎💎💎💎💎💎💎💎")
-                await bot.send_voice(chat_id, voice_id)
-                await bot.send_message(chat_id, "اگر چنانچه مشکلی در نصب و راه اندازی ربات داشتین با ایدی\n @luxalphafxx \n ارتباط بگیرید")
-                await bot.send_message(chat_id, "پس از اتمام طرح سه روزه برای خرید اشتراک دستور\n /خرید را ارسال کنید")
+اگر میخوای تست 3 روزه رو دریافت کنی کافیه به من پیام بدی تا دسترسی رو 3 روز رایگان بهت بدم
+    @luxalphafxx
+                
+اگر هم قصد خرید لایسنس رو داری از قسمت پایین اندیکاتوری که مد نظرته رو انتخاب کن و خریدتو کامل کن.
+هر سوالی داشتی من کنارتم😉
+https://t.me/+7vOZgpnSZmw5Y2Q0""", reply_markup=learn_keyboard)
+                # await bot.send_message(chat_id, "💎💎💎💎💎💎💎💎💎💎")
+                # li = await create_license(chat_id, 1010)
+                # lip = await create_license(chat_id, "pro")
+                # await bot.send_message(chat_id, "لایسنس سه روزه ربات لوکس الفا:")
+                # await bot.send_message(chat_id, li)
+                # await bot.send_document(chat_id, ex_id)
+                # await bot.send_message(chat_id, "http://155.117.13.137:8000")
+                # await bot.send_message(chat_id, "💎💎💎💎💎💎💎💎💎💎")
+                # await bot.send_message(chat_id, "لایسنس سه روزه ربات لوکس الفا پرو:")
+                # await bot.send_message(chat_id, lip)
+                # await bot.send_document(chat_id, ex_id_pro)
+                # await bot.send_message(chat_id, "http://155.117.13.137:8080")
+                # await bot.send_message(chat_id, "💎💎💎💎💎💎💎💎💎💎")
+                # await bot.send_voice(chat_id, voice_id)
+                # await bot.send_message(chat_id, "اگر چنانچه مشکلی در نصب و راه اندازی ربات داشتین با ایدی\n @luxalphafxx \n ارتباط بگیرید")
+                # await bot.send_message(chat_id, "پس از اتمام طرح سه روزه برای خرید اشتراک دستور\n /خرید را ارسال کنید")
                 allUser.register_user(user_data[chat_id]["name"], user_data[chat_id]["fname"], user_data[chat_id]["phone"], user_data[chat_id]["c"], chat_id, "tel", text, user_id)
                 services.set_service(chat_id, "trial")
-                services.set_service_bot(chat_id, "trial")
-                services.set_service_pro(chat_id, "trial")
-                services.register_licese(chat_id, li, 0)
-                services.register_licese_p(chat_id, lip, 0)
+                services.set_service_u(chat_id, 'trial')
+                # services.set_service_bot(chat_id, "trial")
+                # services.set_service_pro(chat_id, "trial")
+                # services.register_licese(chat_id, li, 0)
+                # services.register_licese_p(chat_id, lip, 0)
                 services.set_date_3(chat_id)
-                services.set_date_3_bot(chat_id)
-                services.set_date_3_p(chat_id)
-                services.set_account_id(chat_id, "allTimeFull")
-                services.set_account_id_p(chat_id, "allTimeFull")
+                services.set_date_3_u(chat_id)
+                # services.set_date_3_bot(chat_id)
+                # services.set_date_3_p(chat_id)
+                # services.set_account_id(chat_id, "allTimeFull")
+                # services.set_account_id_p(chat_id, "allTimeFull")
                 del user_data[chat_id]
             elif user_data[chat_id]["command"] == "edit":
                 allUser.update_info(user_data[chat_id]['name'], user_data[chat_id]['fname'], user_data[chat_id]['phone'], chat_id)
                 await bot.send_message(chat_id, summary2)
                 del user_data[chat_id]
-
-    elif user_data[chat_id]["step"] == "GET_TID":
-        user_data[chat_id]["tid"] = text
-        user_data[chat_id]["tid2"] = "allTimeFull"
-        services.set_ids(chat_id, user_data[chat_id]["tid"], user_data[chat_id]["tid2"])
-        await bot.send_photo(chat_id, photo_id)
-        await bot.send_message(chat_id, "لطفا پلن خود را انتخاب کنید", reply_markup=keyboard_plan)
-        user_data[chat_id]["step"] = "pl"
 
     # elif user_data[chat_id]["step"] == "GET_TID2":
     #     if text == "/pass":
@@ -1113,60 +1633,88 @@ async def handle_steps(message):
 3.  اشتراک سه‌ماهه: {amar['سه ماهه']} نفر
 4.  اشتراک شش‌ماهه: {amar['شش ماهه']} نفر
 """)
-            
-            amar2 = services.get_user_status_bot()
+
+            amar2 = services.get_user_status_u()
             if 'None' not in amar2:
                 amar2['None'] = 0
             if 'trial' not in amar2:
                 amar2['trial'] = 0
-            if 'بات یک ماهه' not in amar2:
-                amar2['بات یک ماهه'] = 0
-            if 'بات سه ماهه' not in amar2:
-                amar2["بات سه ماهه"] = 0
-            if 'بات شش ماهه' not in amar2:
-                amar2["بات شش ماهه"] = 0
-            await bot.send_message(chat_id, "ربات")
+            if 'یک ماهه الترا' not in amar2:
+                amar2['یک ماهه الترا'] = 0
+            if 'سه ماهه الترا' not in amar2:
+                amar2["سه ماهه الترا"] = 0
+            if 'شش ماهه الترا' not in amar2:
+                amar2["شش ماهه الترا"] = 0
+            
+            await bot.send_message(chat_id, "اندیکاتور الترا")
             await bot.send_message(chat_id, f"""📊 خلاصه وضعیت کلی:
-- کل کاربران ثبت‌نامی: {amar2['trial']+amar2['بات یک ماهه']+amar2['بات سه ماهه']+amar2['بات شش ماهه']+amar2['None']} نفر
-- کاربران فعال (اشتراک‌دار): {amar2['بات یک ماهه']+amar2['بات سه ماهه']+amar2['بات شش ماهه']} نفر""")
+- کل کاربران ثبت‌نامی: {amar2['trial']+amar2['یک ماهه الترا']+amar2['سه ماهه الترا']+amar2['شش ماهه الترا']+amar2['None']} نفر
+- کاربران فعال (اشتراک‌دار): {amar2['یک ماهه الترا']+amar2['سه ماهه الترا']+amar2['شش ماهه الترا']} نفر""")
             
             await bot.send_message(chat_id, f"""
-- نرخ تبدیل تستی به پولی: {(amar2['بات یک ماهه']+amar2['بات سه ماهه']+amar2['بات شش ماهه'])/(amar2['trial']+amar2['بات یک ماهه']+amar2['بات سه ماهه']+amar2['بات شش ماهه']+amar2['None'])*100}
+- نرخ تبدیل تستی به پولی: {(amar2['یک ماهه الترا']+amar2['سه ماهه الترا']+amar2['شش ماهه الترا'])/(amar2['trial']+amar2['یک ماهه الترا']+amar2['سه ماهه الترا']+amar2['شش ماهه الترا']+amar2['None'])*100}
 
 👥 جزئیات تفکیکی کاربران:
 1.  کاربران بدون اشتراک : {amar2['None']} نفر
 1.  کاربران تستی: {amar2['trial']} نفر (دوره آشنایی رایگان)
-2.  اشتراک ماهانه: {amar2['بات یک ماهه']} نفر
-3.  اشتراک سه‌ماهه: {amar2['بات سه ماهه']} نفر
-4.  اشتراک شش‌ماهه: {amar2['بات شش ماهه']} نفر
+2.  اشتراک ماهانه: {amar2['یک ماهه الترا']} نفر
+3.  اشتراک سه‌ماهه: {amar2['سه ماهه الترا']} نفر
+4.  اشتراک شش‌ماهه: {amar2['شش ماهه الترا']} نفر
 """)
-
-            amar3 = services.get_user_status_pro()
-            if 'None' not in amar3:
-                amar3['None'] = 0
-            if 'trial' not in amar3:
-                amar3['trial'] = 0
-            if 'بات پرو یک ماهه' not in amar3:
-                amar3['بات پرو یک ماهه'] = 0
-            if 'بات پرو سه ماهه' not in amar3:
-                amar3["بات پرو سه ماهه"] = 0
-            if 'بات پرو شش ماهه' not in amar3:
-                amar3["بات پرو شش ماهه"] = 0
-            await bot.send_message(chat_id, "ربات پرو")
-            await bot.send_message(chat_id, f"""📊 خلاصه وضعیت کلی:
-- کل کاربران ثبت‌نامی: {amar3['trial']+amar3['بات پرو یک ماهه']+amar3['بات پرو سه ماهه']+amar3['بات پرو شش ماهه']+amar3['None']} نفر
-- کاربران فعال (اشتراک‌دار): {amar3['بات پرو یک ماهه']+amar3['بات پرو سه ماهه']+amar3['بات پرو شش ماهه']} نفر""")
             
-            await bot.send_message(chat_id, f"""
-- نرخ تبدیل تستی به پولی: {(amar3['بات پرو یک ماهه']+amar3['بات پرو سه ماهه']+amar3['بات پرو شش ماهه'])/(amar3['trial']+amar3['بات پرو یک ماهه']+amar3['بات پرو سه ماهه']+amar3['بات پرو شش ماهه']+amar3['None'])*100}
+#             amar2 = services.get_user_status_bot()
+#             if 'None' not in amar2:
+#                 amar2['None'] = 0
+#             if 'trial' not in amar2:
+#                 amar2['trial'] = 0
+#             if 'بات یک ماهه' not in amar2:
+#                 amar2['بات یک ماهه'] = 0
+#             if 'بات سه ماهه' not in amar2:
+#                 amar2["بات سه ماهه"] = 0
+#             if 'بات شش ماهه' not in amar2:
+#                 amar2["بات شش ماهه"] = 0
+#             await bot.send_message(chat_id, "ربات")
+#             await bot.send_message(chat_id, f"""📊 خلاصه وضعیت کلی:
+# - کل کاربران ثبت‌نامی: {amar2['trial']+amar2['بات یک ماهه']+amar2['بات سه ماهه']+amar2['بات شش ماهه']+amar2['None']} نفر
+# - کاربران فعال (اشتراک‌دار): {amar2['بات یک ماهه']+amar2['بات سه ماهه']+amar2['بات شش ماهه']} نفر""")
+            
+#             await bot.send_message(chat_id, f"""
+# - نرخ تبدیل تستی به پولی: {(amar2['بات یک ماهه']+amar2['بات سه ماهه']+amar2['بات شش ماهه'])/(amar2['trial']+amar2['بات یک ماهه']+amar2['بات سه ماهه']+amar2['بات شش ماهه']+amar2['None'])*100}
 
-👥 جزئیات تفکیکی کاربران:
-1.  کاربران بدون اشتراک : {amar3['None']} نفر
-1.  کاربران تستی: {amar3['trial']} نفر (دوره آشنایی رایگان)
-2.  اشتراک ماهانه: {amar3['بات پرو یک ماهه']} نفر
-3.  اشتراک سه‌ماهه: {amar3['بات پرو سه ماهه']} نفر
-4.  اشتراک شش‌ماهه: {amar3['بات پرو شش ماهه']} نفر
-""")
+# 👥 جزئیات تفکیکی کاربران:
+# 1.  کاربران بدون اشتراک : {amar2['None']} نفر
+# 1.  کاربران تستی: {amar2['trial']} نفر (دوره آشنایی رایگان)
+# 2.  اشتراک ماهانه: {amar2['بات یک ماهه']} نفر
+# 3.  اشتراک سه‌ماهه: {amar2['بات سه ماهه']} نفر
+# 4.  اشتراک شش‌ماهه: {amar2['بات شش ماهه']} نفر
+# """)
+
+#             amar3 = services.get_user_status_pro()
+#             if 'None' not in amar3:
+#                 amar3['None'] = 0
+#             if 'trial' not in amar3:
+#                 amar3['trial'] = 0
+#             if 'بات پرو یک ماهه' not in amar3:
+#                 amar3['بات پرو یک ماهه'] = 0
+#             if 'بات پرو سه ماهه' not in amar3:
+#                 amar3["بات پرو سه ماهه"] = 0
+#             if 'بات پرو شش ماهه' not in amar3:
+#                 amar3["بات پرو شش ماهه"] = 0
+#             await bot.send_message(chat_id, "ربات پرو")
+#             await bot.send_message(chat_id, f"""📊 خلاصه وضعیت کلی:
+# - کل کاربران ثبت‌نامی: {amar3['trial']+amar3['بات پرو یک ماهه']+amar3['بات پرو سه ماهه']+amar3['بات پرو شش ماهه']+amar3['None']} نفر
+# - کاربران فعال (اشتراک‌دار): {amar3['بات پرو یک ماهه']+amar3['بات پرو سه ماهه']+amar3['بات پرو شش ماهه']} نفر""")
+            
+#             await bot.send_message(chat_id, f"""
+# - نرخ تبدیل تستی به پولی: {(amar3['بات پرو یک ماهه']+amar3['بات پرو سه ماهه']+amar3['بات پرو شش ماهه'])/(amar3['trial']+amar3['بات پرو یک ماهه']+amar3['بات پرو سه ماهه']+amar3['بات پرو شش ماهه']+amar3['None'])*100}
+
+# 👥 جزئیات تفکیکی کاربران:
+# 1.  کاربران بدون اشتراک : {amar3['None']} نفر
+# 1.  کاربران تستی: {amar3['trial']} نفر (دوره آشنایی رایگان)
+# 2.  اشتراک ماهانه: {amar3['بات پرو یک ماهه']} نفر
+# 3.  اشتراک سه‌ماهه: {amar3['بات پرو سه ماهه']} نفر
+# 4.  اشتراک شش‌ماهه: {amar3['بات پرو شش ماهه']} نفر
+# """)
 
             await bot.send_message(chat_id, "یکی از گزینه ها را انتخاب کنید\nبرای خروج از پنل مدیریت دستور /exit را وارد کنید.", reply_markup=keyboard_manager)
             user_data[chat_id] = {"step":"choose_operation"}
@@ -1272,58 +1820,87 @@ async def handle_steps(message):
         if text == "/exit":
             await bot.send_message(chat_id, "از پنل ادمین خارج شدید", reply_markup=keyboard_help)
             del user_data[chat_id]
-        elif text in ["کاربران تستی", "کاربران فعال", "کاربران یک ماهه", "کاربران سه ماهه", "کاربران شش ماهه", "کاربران بدون اشتراک"]:
-            ids = []
-            ids2 = []
+        elif text in ["کاربران تستی", "کاربران فعال", "کاربران یک ماهه", "کاربران سه ماهه", "کاربران شش ماهه", "کاربران بدون اشتراک", "کاربران یک ماهه الترا", "کاربران سه ماهه الترا", "کاربران شش ماهه الترا"]:
             if text == 'کاربران تستی':
                 ids = services.get_trial_user_ids()
-                ids2 = services.get_trial_user_ids_bot()
-                ids3 = services.get_trial_user_ids_pro()
-                ids.extend(ids2)
-                ids.extend(ids3)
+                ids2 = services.get_trial_user_ids_u()
+                # ids2 = services.get_trial_user_ids_bot()
+                # ids3 = services.get_trial_user_ids_pro()
+                # ids.extend(ids2)
+                # ids.extend(ids3)
+                finall_ids = [x for x in ids if x in ids2]
                 user_data[chat_id]['step'] = "SEND_MESSAGE"
-                await bot.send_message(chat_id, "پیام خود را بنویسید:")
+                await bot.send_message(chat_id, "پیام خود را بنویسید:\nدر صورت انصراف دستور /exit را وارد کنید.")
             elif text == "کاربران فعال":
                 ids = services.get_active_user_ids()
-                ids2 = services.get_active_user_ids_bot()
-                ids3 = services.get_active_user_ids_pro()
-                ids.extend(ids2)
-                ids.extend(ids3)
+                ids2 = services.get_active_user_ids_u()
+                # ids2 = services.get_active_user_ids_bot()
+                # ids3 = services.get_active_user_ids_pro()
+                # ids.extend(ids2)
+                # ids.extend(ids3)
+                finall_ids = ids+ids2
+                finall_ids = set(finall_ids)
                 user_data[chat_id]['step'] = "SEND_MESSAGE"
-                await bot.send_message(chat_id, "پیام خود را بنویسید:")
+                await bot.send_message(chat_id, "پیام خود را بنویسید:\nدر صورت انصراف دستور /exit را وارد کنید.")
             elif text == 'کاربران بدون اشتراک':
                 ids = services.get_deactive_user_ids()
-                ids2 = services.get_deactive_user_ids_bot()
-                ids3 = services.get_deactive_user_ids_pro()
-                ids.extend(ids2)
-                ids.extend(ids3)
+                ids2 = services.get_deactive_user_ids_u()
+                # ids2 = services.get_deactive_user_ids_bot()
+                # ids3 = services.get_deactive_user_ids_pro()
+                # ids.extend(ids2)
+                # ids.extend(ids3)
+                finall_ids = [x for x in ids if x in ids2]
                 user_data[chat_id]['step'] = "SEND_MESSAGE"
-                await bot.send_message(chat_id, "پیام خود را بنویسید:")
+                await bot.send_message(chat_id, "پیام خود را بنویسید:\nدر صورت انصراف دستور /exit را وارد کنید.")
             elif text == "کاربران یک ماهه":
-                ids = services.get_basic_user_ids()
-                ids2 = services.get_basic_user_ids_bot()
-                ids3 = services.get_basic_user_ids_pro()
-                ids.extend(ids2)
-                ids.extend(ids3)
+                finall_ids = services.get_basic_user_ids()
+                # ids2 = services.get_basic_user_ids_bot()
+                # ids3 = services.get_basic_user_ids_pro()
+                # ids.extend(ids2)
+                # ids.extend(ids3)
                 user_data[chat_id]['step'] = "SEND_MESSAGE"
-                await bot.send_message(chat_id, "پیام خود را بنویسید:")
+                await bot.send_message(chat_id, "پیام خود را بنویسید:\nدر صورت انصراف دستور /exit را وارد کنید.")
             elif text == "کاربران سه ماهه":
-                ids = services.get_pro_user_ids()
-                ids2 = services.get_pro_user_ids_bot()
-                ids3 = services.get_pro_user_ids_pro()
-                ids.extend(ids2)
-                ids.extend(ids3)
+                finall_ids = services.get_pro_user_ids()
+                # ids2 = services.get_pro_user_ids_bot()
+                # ids3 = services.get_pro_user_ids_pro()
+                # ids.extend(ids2)
+                # ids.extend(ids3)
                 user_data[chat_id]['step'] = "SEND_MESSAGE"
-                await bot.send_message(chat_id, "پیام خود را بنویسید:")
+                await bot.send_message(chat_id, "پیام خود را بنویسید:\nدر صورت انصراف دستور /exit را وارد کنید.")
             elif text == "کاربران شش ماهه":
-                ids = services.get_elite_user_ids()
-                ids2 = services.get_elite_user_ids_bot()
-                ids3 = services.get_elite_user_ids_pro()
-                ids.extend(ids2)
-                ids.extend(ids3)
+                finall_ids = services.get_elite_user_ids()
+                # ids2 = services.get_elite_user_ids_bot()
+                # ids3 = services.get_elite_user_ids_pro()
+                # ids.extend(ids2)
+                # ids.extend(ids3)
                 user_data[chat_id]['step'] = "SEND_MESSAGE"
-                await bot.send_message(chat_id, "پیام خود را بنویسید:")
-            user_data[chat_id]['ids'] = ids
+                await bot.send_message(chat_id, "پیام خود را بنویسید:\nدر صورت انصراف دستور /exit را وارد کنید.")
+            elif text == "کاربران یک ماهه الترا":
+                finall_ids = services.get_basic_user_ids_u()
+                # ids2 = services.get_basic_user_ids_bot()
+                # ids3 = services.get_basic_user_ids_pro()
+                # ids.extend(ids2)
+                # ids.extend(ids3)
+                user_data[chat_id]['step'] = "SEND_MESSAGE"
+                await bot.send_message(chat_id, "پیام خود را بنویسید:\nدر صورت انصراف دستور /exit را وارد کنید.")
+            elif text == "کاربران سه ماهه الترا":
+                finall_ids = services.get_pro_user_ids_u()
+                # ids2 = services.get_pro_user_ids_bot()
+                # ids3 = services.get_pro_user_ids_pro()
+                # ids.extend(ids2)
+                # ids.extend(ids3)
+                user_data[chat_id]['step'] = "SEND_MESSAGE"
+                await bot.send_message(chat_id, "پیام خود را بنویسید:\nدر صورت انصراف دستور /exit را وارد کنید.")
+            elif text == "کاربران شش ماهه الترا":
+                finall_ids = services.get_elite_user_ids_u()
+                # ids2 = services.get_elite_user_ids_bot()
+                # ids3 = services.get_elite_user_ids_pro()
+                # ids.extend(ids2)
+                # ids.extend(ids3)
+                user_data[chat_id]['step'] = "SEND_MESSAGE"
+                await bot.send_message(chat_id, "پیام خود را بنویسید:\nدر صورت انصراف دستور /exit را وارد کنید.")
+            user_data[chat_id]['ids'] = finall_ids
         else:
             await bot.send_message(chat_id, "پیام یافت نشد.فیلتر کاربران را به درستی انتخاب کنید", reply_markup=keyboard_filter)
     
@@ -1333,225 +1910,11 @@ async def handle_steps(message):
             del user_data[chat_id]
         else:
             ids = user_data[chat_id]["ids"]
-            await bot.send_message(chat_id, "⏳ ارسال پیام گروهی در پس‌زمینه شروع شد...\nلطفا تا اتمام ارسال پیام ها منتظر بمانید\nپس از اتمام ارسال،پیام مربوطه را دریافت خواهید کرد.")
+            await bot.send_message(chat_id, "⏳ ارسال پیام گروهی در پس‌زمینه شروع شد")
             if ids:
                 asyncio.create_task(broadcast_message(ids, text))
-            await bot.send_message(chat_id, "ارسال پیام ها تمام شد")
             await bot.send_message(chat_id, "یکی از گزینه ها را انتخاب کنید\nبرای خروج از پنل ادمین دستور /exit را وارد کنید.", reply_markup=keyboard_admin)
             user_data[chat_id] = {"step":"SELECT_OPERATION"}
-
-@bot.message_handler(content_types=['new_chat_members'])
-async def kick(message):
-    group_id = message.chat.id
-    print(group_id)
-    if str(group_id) == str(vip_id):
-        new_members = message.new_chat_members
-        
-        for user in new_members:
-            user_id = user.id
-            print(f"Checking user: {user_id}")
-           
-            has_subscription = allUser.check_user(user_id)
-           
-            try:
-                if not has_subscription:
-                    print(f"User {user_id} is NOT VIP. Attempting to ban...")
-                    result = await bot.kick_chat_member(vip_id, user_id)
-                    print(f"Ban Result: {result}")
-            except:
-                pass
-
-@bot.message_handler(content_types=['photo'])
-async def handle_photo(message):
-    chat_id = message.chat.id
-    if chat_id in user_data and user_data[chat_id]['step'] == "support":
-        pic = message.photo[-1].file_id
-        caption = message.caption
-        await bot.send_photo(chat_id=support_group_id, photo=pic, caption=f"پیام ارسال شده از {message.from_user.first_name}\nID:{chat_id}\n\n{caption}", reply_markup=keyboard_claim)
-        await bot.send_message(chat_id, "پیام به کارشناس مربوطه ارسال شد.در اسرع وقت به درخواست شما رسیدگی میشود.در صورت تمایل برای ادامه گف و گو پیام خود را ارسال کنید .درغیر این صورت دستور /exit را ارسال کنید.")
-        return
-    if chat_id in user_data and user_data[chat_id]["command"] == "bot":
-        p = services.get_temp_bot(chat_id)
-    elif chat_id in user_data and user_data[chat_id]["command"] == "botp":
-        p = services.get_temp_pro(chat_id)
-    else:
-        p = services.get_temp(chat_id)
-    file_id = message.photo[-1].file_id
-    full_caption = f"📸 عکس ارسالی از: {message.from_user.first_name}\nID:{chat_id}\nplan:{p[0]}"
-    if chat_id in user_data and user_data[chat_id]["command"] == "and":
-        check_keyboard = types.InlineKeyboardMarkup()
-        button1 = types.InlineKeyboardButton(text="accept✅", callback_data=f"accept_{chat_id}")
-        button2 = types.InlineKeyboardButton(text="reject❌", callback_data=f"reject_{chat_id}")
-        check_keyboard.add(button1, button2)
-    elif chat_id in user_data and user_data[chat_id]["command"] == "botp":
-        check_keyboard = types.InlineKeyboardMarkup()
-        button1 = types.InlineKeyboardButton(text="accept✅", callback_data=f"pro accept_{chat_id}")
-        button2 = types.InlineKeyboardButton(text="reject❌", callback_data=f"pro reject_{chat_id}")
-        check_keyboard.add(button1, button2)
-    else:
-        check_keyboard = types.InlineKeyboardMarkup()
-        button1 = types.InlineKeyboardButton(text="accept✅", callback_data=f"bot accept_{chat_id}")
-        button2 = types.InlineKeyboardButton(text="reject❌", callback_data=f"bot reject_{chat_id}")
-        check_keyboard.add(button1, button2)
-    await bot.send_photo(chat_id=photo_group_id, photo=file_id, reply_markup=check_keyboard, caption=full_caption)
-    await bot.send_message(chat_id, "✅ تصویر شما با موفقیت به مجموعه کارشناسان LUXalpha ارسال شد و پس از تایید دسترسی شما فعال میشود ", reply_markup=None)
-    del user_data[chat_id]
-
-
-# @bot.message_handler(content_types=['video'])
-# async def get_fid(message):
-#     file_id = message.video.file_id
-#     print(file_id)
-
-# @bot.message_handler(content_types=['document'])
-# async def get_fid(message):
-#     file_id = message.document.file_id
-#     print(file_id)
-
-
-
-@bot.message_handler(commands=['help'])
-async def get_help(message):
-    await bot.reply_to(message, """
-                           
-
-🔹 خرید اشتراک ▫️▫️▫️▫️▫️ /خرید
-🔹 مشاهده پروفایل ▫️▫️▫️ /پروفایل
-🔸 ویرایش پروفایل ▫️▫️▫️ /ویرایش
-🔹 سوالات متداول ▫️▫️▫️ /سوالات
-🔹 ارسال عکس واریزی ▫️▫️ /عکس
-🔸 پشتیبانی ▫️▫️▫️▫️▫️ /پشتیبانی
-🔸 ثبت اطلاعات ▫️▫️▫️▫️▫️10
-➖➖➖➖➖➖➖➖➖➖
-🔑 ورود به پنل ادمین ▫️▫️ /ادمین
-🔑 ورود به پنل مدیریت ▫️ /مدیر
-                           
-            
-                           """)
-    
-##############################################temp
-# @bot.message_handler(commands=['get_id'])
-# async def get_chat_id(message):
-#     chat_id = message.chat.id
-#     await bot.send_message(chat_id, chat_id)
-
-@bot.message_handler(commands=['پروفایل'])
-async def get_profile(message):
-    chat_id = message.chat.id
-    info = allUser.get_info(chat_id)
-    try:
-        id1, id2 = services.get_ids(chat_id)
-    except:
-        id1, id2 = ['ندارد', 'ندارد']
-    try:
-        date3 = services.get_date_3(chat_id)[0]
-    except:
-        date3 = ''
-    try:
-        date_and = services.get_date(chat_id)[0]
-    except Exception as e:
-        print(f"a:{e}")
-        date_and = ''
-    try:
-        date_bot = services.get_date_bot(chat_id)[0]
-    except Exception as e:
-        print(f"b:{e}")
-        date_bot = ''
-    
-    try:
-        date_pro = services.get_date_pro(chat_id)[0]
-    except:
-        date_pro = ''
-
-    try:
-        service = services.get_service(chat_id)[0]
-    except:
-        service = 'None'
-    try:
-        service_bot = services.get_service_bot(chat_id)[0]
-    except:
-        service_bot = 'None'
-    try:
-        service_pro = services.get_service_pro(chat_id)[0]
-    except:
-        service = 'None'
-
-    if not info:
-        await bot.send_message(chat_id, "اطلاعات شما ثبت نشده.")
-
-    else:
-        if date_and != '':
-            profile_text = (
-                f"👤 نام: {info[0]} {info[1]}\n"
-                f"📞 شماره: {info[2]}\n"
-                f"🎫 کد معرف: {info[3]}\n"
-                f"👍کاربران دعوت کرده: {info[7]}\n\n"
-                f"🆔 تریدینگ‌ویو: {id1}\n"
-                f"💹اشتراک: {service}\n"
-                f"📅 تاریخ انقضا: {date_and}\n\n"
-                f"🤖 لایسنس ربات: {service_bot}\n"
-                f"📅 تاریخ انقضا ربات: {date_bot}\n\n"
-                f"🤖 لایسنس ربات پرو: {service_pro}\n"
-                f"📅 تاریخ انقضا ربات پرو: {date_pro}"
-            )
-            await bot.send_message(chat_id, profile_text)
-        else:
-            profile_text = (
-                f"👤 نام: {info[0]} {info[1]}\n"
-                f"📞 شماره: {info[2]}\n"
-                f"🎫 کد معرف: {info[3]}\n"
-                f"👍کاربران دعوت کرده: {info[7]}\n\n"
-                f"🆔 تریدینگ‌ویو: {id1}\n"
-                f"💹اشتراک: {service}\n"
-                f"📅 تاریخ انقضا: {date3}\n\n"
-                f"🤖 لایسنس ربات: {service_bot}\n"
-                f"📅 تاریخ انقضا ربات: {date_bot}\n\n"
-                f"🤖 لایسنس ربات پرو: {service_pro}\n"
-                f"📅 تاریخ انقضا ربات پرو: {date_pro}"
-            )
-            await bot.send_message(chat_id, profile_text)
-
-
-
-@bot.message_handler(commands=["ویرایش"])
-async def edit_p(message):
-    chat_id = message.chat.id
-    exist = allUser.exist_user(chat_id)
-    if not exist:
-        await bot.send_message(chat_id, "اطلاعات شما ثبت نشده.")
-    else:
-        await bot.send_message(chat_id, "نام خود را وارد کنید:")
-        user_data[chat_id] = {"step":"GET_NAME", "command":"edit"}
-
-@bot.message_handler(commands=["سوالات"])
-async def get_ask(message):
-    global questions
-    await bot.reply_to(message, questions)
-
-@bot.message_handler(commands=["پشتیبانی"])
-async def get_support(message):
-    await bot.reply_to(message, """
-به پشتیبانی مجموعه LUXalpha خوش امدید.
-برای دریافت اطلاعات تماس گزینه 1
-برای اتصال مستقیم به پشتیبان گزینه 2
-را انتخاب کنید
-""",reply_markup=keyboard_support)
-
-@bot.message_handler(func=lambda message: message.reply_to_message)
-async def answer(message):
-    original_msg = message.reply_to_message.text
-    target_user_id = original_msg.split("ID:")[1].split("\n")[0].strip()
-
-    admin_answer = message.text
-    final_msg = f"🎧 پاسخ پشتیبانی:\n\n{admin_answer}"
-    
-    await bot.send_message(target_user_id, final_msg)
-
-@bot.message_handler(content_types=['video'])
-async def get_document_file_id(message):
-    if message.video:
-        file_id = message.video.file_id
-        print(f"📄 File ID:\n{file_id}")
 
 async def run_bot():
     global session
@@ -1560,8 +1923,10 @@ async def run_bot():
     asyncio.create_task(check_expirations3())
     asyncio.create_task(check_expirations())
     asyncio.create_task(check_expirations_ban())
-    asyncio.create_task(check_expirations_ban_bot())
-    asyncio.create_task(check_expirations_bot())
+    asyncio.create_task(check_expirations_u())
+    asyncio.create_task(check_expirations_ban_u())
+    # asyncio.create_task(check_expirations_ban_bot())
+    # asyncio.create_task(check_expirations_bot())
 
     
     try:
