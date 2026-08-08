@@ -228,7 +228,7 @@ class userDB:
         try:
             with self.db_pool.get_connection() as con:
                 with con.cursor() as cursor:
-                    cursor.execute("SELECT 1 FROM users WHERE chat_id = %s LIMIT 1", (str(chat_id),))
+                    cursor.execute("SELECT 1 FROM users WHERE user_id = %s LIMIT 1", (str(chat_id),))
                     res = cursor.fetchone() is not None
                     return res
         except Exception as e:
@@ -249,6 +249,18 @@ class userDB:
         except:
             print("error in update info")
 
+    def get_full_name(self, user_id):
+        query = "SELECT name, family_name FROM users WHERE user_id = %s"
+        params = (str(user_id),)
+        try:
+            with self.db_pool.get_connection() as con:
+                with con.cursor() as cursor:
+                    cursor.execute(query, params)
+                    res = cursor.fetchone()
+                    return res
+        except:
+            return []
+
     def get_info(self, chat_id):
         query = """SELECT * FROM users WHERE chat_id = %s"""
         params = (str(chat_id),)
@@ -260,6 +272,63 @@ class userDB:
                     return res
         except:
             return []
+
+class support:
+    def __init__(self, db_pool):
+        self.db_pool = db_pool
+
+    def create_table_support(self):
+        query = """CREATE TABLE IF NOT EXISTS user_info (
+        UserID VARCHAR (50) PRIMARY KEY,
+        Forex VARCHAR (255),
+        RealCapital VARCHAR (255),
+        Broker VARCHAR (255),
+        Experience VARCHAR (255),
+        StartDate DATE,
+        INDEX (UserID)
+        )ENGINE=InnoDB;"""
+        try:
+            with self.db_pool.get_connection() as con:
+                with con.cursor() as cursor:
+                    cursor.execute(query)
+                    con.commit()
+        except Exception as e:
+            print(f"error in create user_info table:{e}")
+
+    def get_info(self, chat_id):
+        query = """SELECT * FROM user_info WHERE UserID = %s"""
+        params = (str(chat_id),)
+        try:
+            with self.db_pool.get_connection() as con:
+                with con.cursor() as cursor:
+                    cursor.execute(query, params=params)
+                    res = cursor.fetchone()
+                    return res
+        except Exception as e:
+            print(e)
+
+    def check_user(self, id):
+        try:
+            with self.db_pool.get_connection() as con:
+                with con.cursor() as cursor:
+                    cursor.execute("SELECT 1 FROM user_info WHERE UserID = %s LIMIT 1", (str(id),))
+                    res = cursor.fetchone() is not None
+                    return res
+        except Exception as e:
+            print(f"ERROR IN CHECK USER_INFO:{e}")
+
+
+    def set_info(self, chat_id, f, r, b, e):
+        now = datetime.date.today()
+        query = """INSERT INTO user_info (UserID, Forex, RealCapital, Broker, Experience, StartDate) VALUES (%s, %s, %s, %s, %s, %s)"""
+        params = (str(chat_id), f, r, b, e, now)
+        try:
+            with self.db_pool.get_connection() as con:
+                with con.cursor() as cursor:
+                    cursor.execute(query, params=params)
+                    con.commit()
+        except:
+            print("error in set_user_info")
 
 class serviceManagement:
     def __init__(self, db_pool):
