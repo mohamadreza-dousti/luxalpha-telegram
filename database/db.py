@@ -273,6 +273,8 @@ class userDB:
         except:
             return []
 
+#############################################support class##########################################
+
 class support:
     def __init__(self, db_pool):
         self.db_pool = db_pool
@@ -284,8 +286,7 @@ class support:
         RealCapital VARCHAR (255),
         Broker VARCHAR (255),
         Experience VARCHAR (255),
-        StartDate DATE,
-        INDEX (UserID)
+        StartDate DATE
         )ENGINE=InnoDB;"""
         try:
             with self.db_pool.get_connection() as con:
@@ -329,6 +330,140 @@ class support:
                     con.commit()
         except:
             print("error in set_user_info")
+
+############################################################ticket class###############################################################
+
+class ticket:
+    def __init__(self, db_pool):
+        self.db_pool = db_pool
+
+    def create_table_ticket(self):
+        query = """CREATE TABLE IF NOT EXISTS ticket (
+        TicketID INT AUTO_INCREMENT PRIMARY KEY,
+        category VARCHAR (15),
+        status VARCHAR (10),
+        date_create DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UserID VARCHAR (50),
+        message_id INT NOT NULL,
+        answer_msg_id INT,
+        CONSTRAINT fk_user
+            FOREIGN KEY (UserID)
+            REFERENCES user_info(UserID)
+        )ENGINE=InnoDB;"""
+        try:
+            with self.db_pool.get_connection() as con:
+                with con.cursor() as cursor:
+                    cursor.execute(query)
+                    con.commit()
+        except Exception as e:
+            print(f"error in create ticket table:{e}")
+
+    def get_history(self, chat_id):
+        query = """
+            SELECT
+                category,
+                status,
+                COUNT(*) AS ticket_count
+            FROM ticket
+            WHERE UserID = %s
+            GROUP BY category, status;
+        """
+
+        params = (str(chat_id),)
+
+        try:
+            with self.db_pool.get_connection() as con:
+                with con.cursor(dictionary=True) as cursor:
+                    cursor.execute(query, params)
+                    res = cursor.fetchall()
+
+                    history = {}
+
+                    for row in res:
+                        category = row["category"]
+                        status = row["status"]
+                        count = row["ticket_count"]
+
+                        if category not in history:
+                            history[category] = {}
+
+                        history[category][status] = count
+
+                    return history
+
+        except Exception as e:
+            print(f"Error in get_history: {e}")
+            return None
+
+    def update_status(self, ticket_id):
+        query = """
+            UPDATE ticket
+            SET status = %s
+            WHERE TicketID = %s
+        """
+        params = ("closed", ticket_id)
+
+        try:
+            with self.db_pool.get_connection() as con:
+                with con.cursor() as cursor:
+                    cursor.execute(query, params)
+                    con.commit()
+
+        except Exception as e:
+            print(f"Error in update_status: {e}")
+
+    def update_answer_id(self, ticket_id, msg_id):
+        query = """
+            UPDATE ticket
+            SET answer_msg_id = %s
+            WHERE TicketID = %s
+        """
+        params = (msg_id, ticket_id)
+
+        try:
+            with self.db_pool.get_connection() as con:
+                with con.cursor() as cursor:
+                    cursor.execute(query, params)
+                    con.commit()
+
+        except Exception as e:
+            print(f"Error in update_status: {e}")
+
+    def save_ticket(self, message_id, user_id, category, status="open"):
+        query = """
+            INSERT INTO ticket (category, status, UserID, message_id)
+            VALUES (%s, %s, %s, %s)
+        """
+        params = (category, status, str(user_id), message_id)
+        try:
+            with self.db_pool.get_connection() as con:
+                with con.cursor() as cursor:
+                    cursor.execute(query, params)
+                    con.commit()
+
+        except Exception as e:
+            print(f"Error in save_ticket: {e}")
+            return None
+
+    def get_ticket_id(self, user_id, msg_id):
+        query = """
+            SELECT TicketID
+            FROM ticket
+            WHERE UserID = %s AND message_id = %s
+        """
+        params = (str(user_id), msg_id)
+        try:
+            with self.db_pool.get_connection() as con:
+                with con.cursor(dictionary=True) as cursor:
+                    cursor.execute(query, params)
+                    result = cursor.fetchone()
+                    return result["TicketID"]
+
+        except Exception as e:
+            print(f"Error in get_ticket_id: {e}")
+            return None
+
+############################################################service class##############################################################
 
 class serviceManagement:
     def __init__(self, db_pool):
