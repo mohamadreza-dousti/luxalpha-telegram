@@ -56,7 +56,7 @@ async def check_expirations3():
                 pu = services.get_service_u(chat_id)[0]
                 # pb = services.get_service_bot(chat_id)[0]
                 # pp = services.get_service_pro(chat_id)[0]
-                if p == 'trial' and pu == 'trial':# or pb == 'trial':
+                if p == 'trial' or pu == 'trial':# or pb == 'trial':
                     user_exp_date = user[1]
                     if user_exp_date and today >= user_exp_date:
                         msg = "⚠️ مشترک گرامی،اشتراک 3 روزه شما پایان یافته است. برای خرید اشتراک از دستور /خرید استفاده کنید."
@@ -507,7 +507,7 @@ async def getPhoto(message):
 async def buy(message):
     chat_id = message.chat.id
     user_id = message.from_user.id
-    k = allUser.check_user(chat_id=chat_id)
+    k = allUser.check_user(chat_id)
     if not k:
         await bot.send_message(chat_id, "قبل از خرید با ارسال عدد 10 اطلاعات خود را ثبت کنید")
     else:
@@ -652,9 +652,11 @@ async def get_profile(message):
     chat_id = message.chat.id
     info = allUser.get_info(chat_id)
     try:
-        id1u, id2u = services.get_ids(chat_id)
+        id1, id2u = services.get_ids(chat_id)
     except:
-        id1u, id2u = ['ندارد', 'ندارد']
+        id1, id2u = ['ندارد', 'ندارد']
+    if not id1:
+        id1 = 'ندارد'
     try:
         date3 = services.get_date_3(chat_id)[0]
     except:
@@ -662,17 +664,17 @@ async def get_profile(message):
     try:
         date_and = services.get_date(chat_id)[0]
     except Exception as e:
-        print(f"a:{e}")
         date_and = ''
 
     try:
-        id1, id2 = services.get_ids_u(chat_id)
+        id1u, id2 = services.get_ids_u(chat_id)
     except:
-        id1, id2 = ['ندارد', 'ندارد']
+        id1u, id2 = ['ندارد', 'ندارد']
+    if not id1u:
+        id1u = 'ندارد'
     try:
         date_andu = services.get_date_u(chat_id)[0]
     except Exception as e:
-        print(f"a:{e}")
         date_andu = ''
 
     try:
